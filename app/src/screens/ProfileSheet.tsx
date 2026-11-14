@@ -1,0 +1,60 @@
+import { useState } from 'react';
+import { Button } from '../components/Button';
+import { Field } from '../components/Field';
+import { Sheet } from '../components/Sheet';
+import { t } from '../i18n';
+import { useShell } from '../shell/shell';
+import { useNode } from '../store/node';
+
+interface Props {
+  onClose: () => void;
+}
+
+/**
+ * The name other members see. There is no account behind it: it is a label
+ * this phone tells each group, and leaving it empty keeps the random
+ * nickname each group gives you.
+ */
+export function ProfileSheet({ onClose }: Props) {
+  const node = useNode();
+  const shell = useShell();
+  const [name, setName] = useState(node.state?.profile.name ?? '');
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await node.call('setProfile', { name: name.trim() });
+      shell.toast(t(name.trim() ? 'profile.saved' : 'profile.cleared'), 'success');
+      onClose();
+    } catch (err) {
+      shell.toast(t('profile.failed', { reason: (err as Error).message }), 'error');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet
+      title={t('profile.title')}
+      onClose={onClose}
+      footer={
+        <>
+          <Button label={t('common.cancel')} onPress={onClose} />
+          <Button label={t('profile.save')} kind="primary" busy={busy} onPress={save} />
+        </>
+      }
+    >
+      <Field
+        label={t('profile.label')}
+        value={name}
+        onChange={setName}
+        placeholder={t('profile.placeholder')}
+        hint={t('profile.hint')}
+        maxLength={30}
+        autoFocus
+        onSubmit={save}
+      />
+    </Sheet>
+  );
+}

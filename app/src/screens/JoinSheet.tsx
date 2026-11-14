@@ -17,7 +17,10 @@ interface Props {
 
 const INVITE_PREFIX = 'randoz://join/';
 
-/** Scan an invite's QR code, or paste its link. */
+/**
+ * Scan an invite's QR code, or paste its link. Joining then carries on in
+ * the group list, where it shows as "Joining…".
+ */
 export function JoinSheet({ onClose }: Props) {
   const theme = useTheme();
   const node = useNode();

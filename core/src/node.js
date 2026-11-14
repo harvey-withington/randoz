@@ -207,14 +207,18 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
   }
 
   fs.mkdirSync(groupsDir, { recursive: true })
+  // Before groups had a folder each, the one group lived here. Clear it away.
+  for (const old of ['cores', 'cache']) fs.rmSync(path.join(storage, old), { recursive: true, force: true })
   profile = { name: '', ...readSaved().profile }
   dht = new DHT({ bootstrap })
-  for (const id of fs.readdirSync(groupsDir)) {
-    try {
-      await openSession(id)
-    } catch (err) {
-      log(`could not open group ${id}: ${/** @type {Error} */ (err).message}`)
-    }
+  // If a group cannot be opened, say so and stop. Starting without it would
+  // show an empty list, which looks like the groups are gone.
+  try {
+    for (const id of fs.readdirSync(groupsDir)) await openSession(id)
+  } catch (err) {
+    await Promise.all([...sessions.values()].map((session) => session.close().catch(() => {})))
+    await dht.destroy()
+    throw err
   }
   emitState()
   return api

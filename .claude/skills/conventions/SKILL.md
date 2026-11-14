@@ -28,6 +28,13 @@ The rules a change must not break. The reasons are in `docs/decisions/`.
   log applies whatever a writer appends, so who may do what is decided
   there, and only there. `apply` reads and writes the view and nothing
   else: no clocks, no random numbers, no network.
+- **Each group is a session with its own folder, storage and key pair**
+  (`core/src/session.js`). Nothing a device does in one group may be
+  linkable to what it does in another, and leaving a group deletes one
+  folder. Sessions share only the node's DHT.
+- **One core at a time.** The worklet closes the core when it stops, and
+  the screen stops the worklet when it goes away; a second core on the same
+  storage cannot open it.
 - **An invite never contains the group's secret.** It holds an invite key;
   a member checks it and sends the secret over the encrypted connection.
 - **Nothing leaves the phone unencrypted or with its metadata.** Photos are

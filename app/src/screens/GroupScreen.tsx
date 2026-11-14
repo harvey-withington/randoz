@@ -1,28 +1,35 @@
-import { useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Pressable, useWindowDimensions, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { BackHandler, FlatList, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ImagePlus, UserPlus, Users } from 'lucide-react-native';
-import { Avatar } from '../components/Avatar';
+import { ArrowLeft, Download, EyeOff, ImagePlus, UserPlus, Users, X } from 'lucide-react-native';
 import { Button, IconButton } from '../components/Button';
+import { ConnectionDot } from '../components/ConnectionDot';
 import { Txt } from '../components/Txt';
 import { plural, t } from '../i18n';
 import { pickPhotos, prepare } from '../lib/photos';
-import type { InGroupState, Item } from '../lib/types';
+import { saveToCameraRoll } from '../lib/save';
+import type { Group } from '../lib/types';
 import { useShell } from '../shell/shell';
-import { toUri, useNode } from '../store/node';
+import { useNode } from '../store/node';
 import { useTheme } from '../theme/theme';
+import { connectionLabel } from './GroupsScreen';
 import { InviteSheet } from './InviteSheet';
 import { MembersSheet } from './MembersSheet';
+import { PhotoTile } from './PhotoTile';
 import { Viewer } from './Viewer';
 
 interface Props {
-  state: InGroupState;
+  group: Group;
+  onBack: () => void;
 }
 
 const COLUMNS = 3;
 
-/** The group: who you are, who's here, and everyone's photos. */
-export function GroupScreen({ state }: Props) {
+/**
+ * One group: who you are in it, who's online, and everyone's photos. A long
+ * press on a photo starts selecting, to save or unshare several at once.
+ */
+export function GroupScreen({ group, onBack }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const node = useNode();
@@ -31,13 +38,37 @@ export function GroupScreen({ state }: Props) {
   const [inviting, setInviting] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [viewing, setViewing] = useState<string | null>(null);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [progress, setProgress] = useState<string | null>(null);
   const c = theme.color;
   const gap = theme.space[1];
   const cell = (width - gap * (COLUMNS - 1)) / COLUMNS;
   // Newest first, as a camera roll shows them.
-  const items = [...state.items].reverse();
-  const viewed = viewing ? state.items.find((item) => item.id === viewing) : undefined;
+  const items = [...group.items].reverse();
+  const viewed = viewing ? group.items.find((item) => item.id === viewing) : undefined;
+  // Photos unshared by someone else drop out of the selection.
+  const chosen = group.items.filter((item) => selected.has(item.id));
+  const selecting = selected.size > 0;
+  const online = group.members.some((member) => member.online && !member.me);
+
+  // Back closes the top layer: the selection first, then the group.
+  useEffect(() => {
+    if (viewed) return; // the viewer holds Back while it is open
+    const held = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (selected.size > 0) setSelected(new Set());
+      else onBack();
+      return true;
+    });
+    return () => held.remove();
+  }, [viewed, selected, onBack]);
+
+  const toggle = (id: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  };
 
   const share = async () => {
     try {
@@ -45,13 +76,13 @@ export function GroupScreen({ state }: Props) {
       if (photos.length === 0) return;
       const ok = await shell.confirm({
         title: photos.length === 1 ? t('confirmShare.titleOne') : t('confirmShare.title', { count: photos.length }),
-        message: t('confirmShare.message', { group: state.group.name }),
+        message: t('confirmShare.message', { group: group.name }),
         confirmLabel: t('confirmShare.confirm'),
       });
       if (!ok) return;
       for (let done = 0; done < photos.length; done++) {
-        setProgress({ done, total: photos.length });
-        await node.call('shareItem', await prepare(photos[done]));
+        setProgress(t('group.sharing', { done: done + 1, total: photos.length }));
+        await node.call('shareItem', { group: group.id, ...(await prepare(photos[done])) });
       }
       shell.toast(plural(photos.length, 'group.sharedOne', 'group.shared'), 'success');
     } catch (err) {
@@ -61,50 +92,117 @@ export function GroupScreen({ state }: Props) {
     }
   };
 
+  const saveSelected = async () => {
+    try {
+      const granted = await saveToCameraRoll(node, group.id, chosen, (done, total) =>
+        setProgress(t('select.saving', { done: done + 1, total })),
+      );
+      if (!granted) shell.toast(t('viewer.saveDenied'), 'error');
+      else {
+        shell.toast(plural(chosen.length, 'select.savedOne', 'select.saved'), 'success');
+        setSelected(new Set());
+      }
+    } catch (err) {
+      shell.toast(t('viewer.saveFailed', { reason: (err as Error).message }), 'error');
+    } finally {
+      setProgress(null);
+    }
+  };
+
+  const unshareSelected = async () => {
+    if (chosen.some((item) => !item.mine)) {
+      shell.toast(t('select.notAllYours'), 'info');
+      return;
+    }
+    const ok = await shell.confirm({
+      title:
+        chosen.length === 1
+          ? t('select.confirmUnshareTitleOne')
+          : t('select.confirmUnshareTitle', { count: chosen.length }),
+      message: t('viewer.confirmUnshareMessage'),
+      confirmLabel: t('select.unshare'),
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await node.call('unshareItems', { group: group.id, ids: chosen.map((item) => item.id) });
+      shell.toast(plural(chosen.length, 'select.unsharedOne', 'select.unshared'), 'info');
+      setSelected(new Set());
+    } catch (err) {
+      shell.toast(t('select.unshareFailed', { reason: (err as Error).message }), 'error');
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top }}>
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          gap: theme.space[2],
-          paddingLeft: theme.space[4],
-          paddingRight: theme.space[2],
+          minHeight: theme.touch + theme.space[4],
+          paddingHorizontal: theme.space[1],
           paddingVertical: theme.space[2],
           borderBottomWidth: 1,
           borderBottomColor: c.border,
           backgroundColor: c.surface,
         }}
       >
-        <Avatar person={state.me} size={36} />
-        <View style={{ flex: 1 }}>
-          <Txt variant="title" numberOfLines={1} accessibilityRole="header">
-            {state.group.name}
-          </Txt>
-          <Txt variant="muted" numberOfLines={1}>
-            {state.group.writable ? t('group.you', { name: state.me.name }) : t('group.joiningAs')}
-          </Txt>
-          <Txt variant="faint" numberOfLines={1}>
-            {state.peers > 0 ? t('group.connected', { count: state.peers }) : t('group.offline')}
-          </Txt>
-        </View>
-        <IconButton label={t('group.invite')} icon={UserPlus} onPress={() => setInviting(true)} />
-        <IconButton
-          label={`${t('menu.members')}: ${plural(state.members.length, 'group.membersOne', 'group.members')}`}
-          icon={Users}
-          onPress={() => setShowMembers(true)}
-        />
+        {selecting ? (
+          <>
+            <IconButton label={t('select.cancel')} icon={X} onPress={() => setSelected(new Set())} />
+            <Txt variant="title" style={{ flex: 1, marginLeft: theme.space[2] }} accessibilityLiveRegion="polite">
+              {t('select.count', { count: chosen.length })}
+            </Txt>
+            <IconButton label={t('select.save')} icon={Download} disabled={progress !== null} onPress={saveSelected} />
+            <IconButton
+              label={t('select.unshare')}
+              icon={EyeOff}
+              color={c.danger}
+              disabled={progress !== null}
+              onPress={unshareSelected}
+            />
+          </>
+        ) : (
+          <>
+            <IconButton label={t('group.back')} icon={ArrowLeft} onPress={onBack} />
+            <View style={{ flex: 1, marginLeft: theme.space[1] }}>
+              <Txt variant="title" numberOfLines={1} accessibilityRole="header">
+                {group.name}
+              </Txt>
+              <Txt variant="muted" numberOfLines={1}>
+                {group.writable ? t('group.you', { name: group.me.name }) : t('group.joiningAs')}
+              </Txt>
+              <ConnectionDot online={online} label={connectionLabel(group)} />
+            </View>
+            <IconButton label={t('group.invite')} icon={UserPlus} onPress={() => setInviting(true)} />
+            <IconButton
+              label={`${t('members.open')}: ${plural(group.members.length, 'groups.peopleOne', 'groups.people')}`}
+              icon={Users}
+              onPress={() => setShowMembers(true)}
+            />
+          </>
+        )}
       </View>
 
       <FlatList
         // Hidden from screen readers while the viewer covers it.
         importantForAccessibility={viewed ? 'no-hide-descendants' : 'auto'}
         data={items}
+        extraData={selected}
         keyExtractor={(item) => item.id}
         numColumns={COLUMNS}
         columnWrapperStyle={{ gap }}
         contentContainerStyle={{ gap, paddingBottom: insets.bottom + theme.touch + theme.space[6], flexGrow: 1 }}
-        renderItem={({ item }) => <Tile item={item} size={cell} onPress={() => setViewing(item.id)} />}
+        renderItem={({ item }) => (
+          <PhotoTile
+            item={item}
+            size={cell}
+            selecting={selecting}
+            selected={selected.has(item.id)}
+            onPress={() => (selecting ? toggle(item.id) : setViewing(item.id))}
+            onLongPress={() => toggle(item.id)}
+          />
+        )}
         ListEmptyComponent={
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.space[6], gap: theme.space[2] }}>
             <Txt variant="title">{t('group.empty')}</Txt>
@@ -115,57 +213,26 @@ export function GroupScreen({ state }: Props) {
         }
       />
 
-      <View
-        pointerEvents="box-none"
-        style={{ position: 'absolute', left: 0, right: 0, bottom: insets.bottom + theme.space[4], alignItems: 'center' }}
-      >
-        <Button
-          label={progress ? t('group.sharing', { done: progress.done + 1, total: progress.total }) : t('group.share')}
-          kind="primary"
-          icon={ImagePlus}
-          busy={progress !== null}
-          disabled={!state.group.writable}
-          onPress={share}
-          style={{ alignSelf: 'center', elevation: 4 }}
-        />
-      </View>
-
-      {inviting ? <InviteSheet state={state} onClose={() => setInviting(false)} /> : null}
-      {showMembers ? <MembersSheet state={state} onClose={() => setShowMembers(false)} /> : null}
-      {viewed ? <Viewer item={viewed} onClose={() => setViewing(null)} /> : null}
-    </View>
-  );
-}
-
-interface TileProps {
-  item: Item;
-  size: number;
-  onPress: () => void;
-}
-
-function Tile({ item, size, onPress }: TileProps) {
-  const theme = useTheme();
-  const who = item.mine ? t('viewer.byYou') : t('viewer.by', { name: item.by?.name ?? '' });
-  return (
-    <Pressable
-      accessibilityRole="imagebutton"
-      accessibilityLabel={`${item.name}. ${who}`}
-      onPress={onPress}
-      style={{ width: size, height: size, backgroundColor: theme.color.surface2 }}
-    >
-      {item.files.thumbnail ? (
-        <Image source={{ uri: toUri(item.files.thumbnail) }} style={{ width: size, height: size }} />
-      ) : (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: theme.space[1] }}>
-          <ActivityIndicator color={theme.color.textFaint} />
-          <Txt variant="faint">{t('group.loading')}</Txt>
+      {selecting && progress === null ? null : (
+        <View
+          pointerEvents="box-none"
+          style={{ position: 'absolute', left: 0, right: 0, bottom: insets.bottom + theme.space[4], alignItems: 'center' }}
+        >
+          <Button
+            label={progress ?? t('group.share')}
+            kind="primary"
+            icon={ImagePlus}
+            busy={progress !== null}
+            disabled={!group.writable}
+            onPress={share}
+            style={{ alignSelf: 'center', elevation: 4 }}
+          />
         </View>
       )}
-      {item.by ? (
-        <View style={{ position: 'absolute', left: theme.space[1], bottom: theme.space[1] }}>
-          <Avatar person={item.by} size={22} onPhoto />
-        </View>
-      ) : null}
-    </Pressable>
+
+      {inviting ? <InviteSheet group={group} onClose={() => setInviting(false)} /> : null}
+      {showMembers ? <MembersSheet group={group} onClose={() => setShowMembers(false)} /> : null}
+      {viewed ? <Viewer group={group.id} item={viewed} onClose={() => setViewing(null)} /> : null}
+    </View>
   );
 }

@@ -71,4 +71,12 @@ module.exports = function start(ipc) {
       )
     }
   })
+
+  // Runs before the worklet exits: close the core so its storage is free for
+  // the next one. Without this, a new worklet in the same process finds the
+  // storage locked.
+  return async function stop() {
+    if (node) await node.close()
+    node = null
+  }
 }

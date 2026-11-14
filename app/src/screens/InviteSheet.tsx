@@ -7,13 +7,13 @@ import { Button } from '../components/Button';
 import { Sheet } from '../components/Sheet';
 import { Txt } from '../components/Txt';
 import { t } from '../i18n';
-import type { InGroupState } from '../lib/types';
+import type { Group } from '../lib/types';
 import { useShell } from '../shell/shell';
 import { useNode } from '../store/node';
 import { useTheme } from '../theme/theme';
 
 interface Props {
-  state: InGroupState;
+  group: Group;
   onClose: () => void;
 }
 
@@ -21,24 +21,24 @@ interface Props {
  * Shows an invite as a QR code and a link. A group has one shareable invite
  * at a time: this shows the one that exists, or makes one.
  */
-export function InviteSheet({ state, onClose }: Props) {
+export function InviteSheet({ group, onClose }: Props) {
   const theme = useTheme();
   const node = useNode();
   const shell = useShell();
   const c = theme.color;
-  const invite = state.invites.find((i) => i.kind === 'open');
+  const invite = group.invites.find((i) => i.kind === 'open');
   const [making, setMaking] = useState(false);
   const asked = useRef(false);
 
   useEffect(() => {
-    if (invite || asked.current || !state.group.writable) return;
+    if (invite || asked.current || !group.writable) return;
     asked.current = true;
     setMaking(true);
     node
-      .call('createInvite', { kind: 'open' })
+      .call('createInvite', { group: group.id, kind: 'open' })
       .catch((err: Error) => shell.toast(t('invite.failed', { reason: err.message }), 'error'))
       .finally(() => setMaking(false));
-  }, [invite, state.group.writable, node, shell]);
+  }, [invite, group.id, group.writable, node, shell]);
 
   const copy = async () => {
     if (!invite) return;
@@ -48,7 +48,7 @@ export function InviteSheet({ state, onClose }: Props) {
 
   const send = () => {
     if (!invite) return;
-    Share.share({ message: t('invite.shareMessage', { group: state.group.name, link: invite.code }) }).catch(() => {});
+    Share.share({ message: t('invite.shareMessage', { group: group.name, link: invite.code }) }).catch(() => {});
   };
 
   const turnOff = async () => {
@@ -60,7 +60,7 @@ export function InviteSheet({ state, onClose }: Props) {
       danger: true,
     });
     if (!ok) return;
-    await node.call('revokeInvite', { id: invite.id });
+    await node.call('revokeInvite', { group: group.id, id: invite.id });
     shell.toast(t('invite.turnedOff'), 'info');
     onClose();
   };

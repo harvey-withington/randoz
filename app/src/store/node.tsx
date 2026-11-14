@@ -36,7 +36,10 @@ export function NodeProvider({ children }: Props) {
     let cancelled = false;
     (async () => {
       const started = await startCore();
-      if (cancelled) return;
+      if (cancelled) {
+        await started.stop();
+        return;
+      }
       core.current = started;
       stop = started.onState(setState);
       const storage = toPath(Paths.document.uri) + '/randoz';
@@ -46,6 +49,9 @@ export function NodeProvider({ children }: Props) {
     return () => {
       cancelled = true;
       stop?.();
+      // Free the core's storage for whichever screen starts next.
+      core.current?.stop().catch(() => {});
+      core.current = null;
     };
   }, []);
 

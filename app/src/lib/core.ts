@@ -24,6 +24,8 @@ export interface Core {
   call<M extends keyof CoreMethods>(method: M, params: CoreMethods[M]['params']): Promise<CoreMethods[M]['result']>;
   /** Hears every new state. Returns a function that stops listening. */
   onState(listener: Listener): () => void;
+  /** Stops the worklet, letting the core close its storage first. */
+  stop(): Promise<void>;
 }
 
 /** Starts the worklet and returns the way to talk to it. */
@@ -74,6 +76,10 @@ export async function startCore(): Promise<Core> {
     onState(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
+    },
+    async stop() {
+      listeners.clear();
+      await ipc.terminate();
     },
   };
 }
