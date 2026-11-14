@@ -55,9 +55,21 @@ attribution or older commits carry one.
 
 **Who commits.** During the initial build, Claude commits without asking,
 at logical points: a piece of work that is complete, passes the checks
-above, and makes sense by itself. Commits go on `main`. This standing
-permission lasts until the owner says the initial build is over; after
-that, ask before each commit and branch first.
+above, and makes sense by itself. Ordinary work goes on `main`. This
+standing permission lasts until the owner says the initial build is over;
+after that, ask before each commit and branch first.
+
+**Branches.** A major refactor or a disruptive feature gets its own
+branch, not `main`: anything that could leave the app unusable part-way,
+changes how existing features work, or touches many files at once. If in
+doubt, say which it is before starting.
+- Name it for the work: `refactor/shared-core`, `feat/background-service`.
+- Commit on the branch as freely as on `main`.
+- It is merged only when both are happy: the checks pass, Claude has
+  tested it, and the owner has done their own manual tests and said so.
+  Claude then merges it to `main` and deletes the branch. The owner's
+  go-ahead covers that one merge.
+- Tell the owner what to test by hand, and how to get the build.
 
 **Who pushes.** The owner, always. Claude never pushes, and never does
 anything else that changes the public repo or what the public sees:
