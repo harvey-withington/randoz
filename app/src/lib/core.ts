@@ -19,11 +19,14 @@ type Reply =
   | { event: 'log'; text: string };
 
 const NEWLINE = String.fromCharCode(10);
+const LOG_LINES = 400;
 
 export interface Core {
   call<M extends keyof CoreMethods>(method: M, params: CoreMethods[M]['params']): Promise<CoreMethods[M]['result']>;
   /** Hears every new state. Returns a function that stops listening. */
   onState(listener: Listener): () => void;
+  /** What the core has said lately, oldest first: for working out what went wrong. */
+  log(): string;
   /** Stops the worklet, letting the core close its storage first. */
   stop(): Promise<void>;
 }
@@ -35,11 +38,16 @@ export async function startCore(): Promise<Core> {
   const listeners = new Set<Listener>();
   let nextId = 1;
   let buffer = '';
+  const lines: string[] = [];
+  const note = (text: string) => {
+    lines.push(new Date().toISOString().slice(11, 23) + ' ' + text);
+    if (lines.length > LOG_LINES) lines.shift();
+  };
 
   const handle = (reply: Reply) => {
     if ('event' in reply) {
       if (reply.event === 'state') listeners.forEach((listener) => listener(reply.state));
-      else if (__DEV__) console.log('[core]', reply.text);
+      else note(reply.text);
       return;
     }
     const waiting = pending.get(reply.id);
@@ -77,6 +85,7 @@ export async function startCore(): Promise<Core> {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
+    log: () => lines.join(NEWLINE),
     async stop() {
       listeners.clear();
       await ipc.terminate();

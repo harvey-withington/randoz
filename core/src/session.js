@@ -27,6 +27,8 @@ const EAGER_FETCHES = 4
 const LOOKUP_EVERY_MS = 3000
 const ANNOUNCE_WAIT_MS = 15000
 const LONELY_CHECK_MS = 15000
+const MISSING_CHECK_EVERY = 4 // in lonely checks: once a minute
+const QUIET_MS = 15000
 export const MAX_NAME = 30
 
 /**
@@ -72,6 +74,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
   /** @type {ReturnType<typeof setInterval> | null} */ let lonelyTimer = null
   let suspended = false
   let namePending = false
+  let checks = 0
 
   const short = (/** @type {string} */ key) => key.slice(0, 8)
   const epochKey = () => derive(/** @type {Uint8Array} */ (secret), 'epoch/0')
@@ -105,7 +108,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
     await store.ready()
     swarm = new Hyperswarm({ dht: sharedDht(dht), keyPair: await store.createKeyPair('swarm') })
     swarm.on('connection', onConnection)
-    lonelyTimer = setInterval(lookAgainIfLonely, LONELY_CHECK_MS)
+    lonelyTimer = setInterval(() => lookAgainIfLonely().catch(() => {}), LONELY_CHECK_MS)
 
     const saved = readSaved()
     savedItems = new Set(saved.saved || [])
@@ -181,9 +184,16 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
   }
 
   // A member with nobody connected looks for the others again. Hyperswarm
-  // retries by itself, but backs off for minutes after a few failures.
-  function lookAgainIfLonely() {
-    if (suspended || !base || swarm.connections.size > 0) return
+  // retries by itself, but backs off for minutes after a few failures. With
+  // some connected and others missing, it looks once a minute.
+  async function lookAgainIfLonely() {
+    if (suspended || !base) return
+    if (swarm.connections.size > 0) {
+      if (++checks % MISSING_CHECK_EVERY !== 0) return
+      const others = (await listMembers(base)).filter((m) => !m.left).length - 1
+      if (suspended || !base || new Set(online.values()).size >= others) return
+      log('someone is missing: looking again')
+    }
     for (const discovery of topics.values()) discovery.refresh().catch(() => {})
   }
 
@@ -211,8 +221,13 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
     conn.on('error', () => {}) // a peer going away is not a crash
     conn.on('close', () => {
       online.delete(conn)
+      log(`connection to ${short(hex(info.publicKey))} closed`)
       onChange()
     })
+    // The other end sends something every few seconds even when idle. One
+    // that goes quiet has gone away without saying so (a frozen app, a lost
+    // network): drop it, so that a fresh connection can take its place.
+    conn.setTimeout(QUIET_MS)
     store.replicate(conn)
     if (!capPacketSize(conn.rawStream)) log('packet size cap not applied')
     log(`connected to ${short(hex(info.publicKey))}`)
@@ -268,6 +283,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
       // may have just joined, and missed the one we sent when it connected.
       const first = !online.has(conn)
       online.set(conn, msg.key)
+      if (first) log(`${short(msg.key)} is here`)
       if (first) sendHello(conn, send)
       onChange()
       if (base.writable && !(await base.view.get('member/' + msg.key))) {
@@ -294,6 +310,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
     const existing = fetching.get(name)
     if (existing) return existing
 
+    const started = Date.now()
     const job = (async () => {
       const item = await getItem(base, itemKey)
       const entry = item && item.tiers[tier]
@@ -301,6 +318,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
       const bytes = await fetchTier(store, item.owner, entry, epochKey())
       fs.writeFileSync(cachePath(name), bytes)
       cached.add(name)
+      log(`got ${tier} of ${short(itemKey)} in ${Date.now() - started} ms`)
       return cachePath(name)
     })()
     fetching.set(name, job)
@@ -337,6 +355,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
   }
 
   function onUpdate() {
+    log(`group log updated (${base.view.version} entries in view)`)
     syncTopics().catch((err) => log('topics failed: ' + err.message))
     syncName().catch((err) => log('name failed: ' + err.message))
     onChange()
@@ -504,6 +523,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
     async suspend() {
       if (suspended || !swarm) return
       suspended = true
+      log('suspending')
       await swarm.suspend()
       await store.suspend()
     },
@@ -513,6 +533,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
       await store.resume()
       await swarm.resume()
       suspended = false
+      log('resumed')
       for (const discovery of topics.values()) discovery.refresh().catch(() => {})
     },
 

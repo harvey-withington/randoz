@@ -12,6 +12,8 @@ export interface NodeStore {
   /** Why the core failed to start, if it did. */
   startError: string;
   call<M extends keyof CoreMethods>(method: M, params: CoreMethods[M]['params']): Promise<CoreMethods[M]['result']>;
+  /** What the core has said lately, as text to copy. */
+  log(): string;
 }
 
 const NodeContext = createContext<NodeStore | null>(null);
@@ -62,6 +64,7 @@ export function NodeProvider({ children }: Props) {
       if (!core.current) return Promise.reject(new Error('RANDOZ is still starting'));
       return core.current.call(method, params);
     },
+    log: () => core.current?.log() ?? '',
   };
   return <NodeContext.Provider value={store}>{children}</NodeContext.Provider>;
 }

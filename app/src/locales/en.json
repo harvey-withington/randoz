@@ -49,6 +49,9 @@
   "profile.save": "Save",
   "profile.saved": "Name saved",
   "profile.cleared": "You're anonymous again",
+  "profile.copyLog": "Copy connection log",
+  "profile.logCopied": "Log copied",
+  "profile.logHint": "If something isn't arriving, this log helps work out why. It holds times and connection events, no photos or names.",
   "profile.failed": "Couldn't save your name: {reason}",
 
   "conn.count": "{online} of {total} online",

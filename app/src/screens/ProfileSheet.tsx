@@ -1,10 +1,14 @@
 import { useState } from 'react';
+import { View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Button } from '../components/Button';
 import { Field } from '../components/Field';
 import { Sheet } from '../components/Sheet';
 import { t } from '../i18n';
 import { useShell } from '../shell/shell';
 import { useNode } from '../store/node';
+import { useTheme } from '../theme/theme';
+import { Txt } from '../components/Txt';
 
 interface Props {
   onClose: () => void;
@@ -18,6 +22,7 @@ interface Props {
 export function ProfileSheet({ onClose }: Props) {
   const node = useNode();
   const shell = useShell();
+  const theme = useTheme();
   const [name, setName] = useState(node.state?.profile.name ?? '');
   const [busy, setBusy] = useState(false);
 
@@ -32,6 +37,11 @@ export function ProfileSheet({ onClose }: Props) {
       shell.toast(t('profile.failed', { reason: (err as Error).message }), 'error');
       setBusy(false);
     }
+  };
+
+  const copyLog = async () => {
+    await Clipboard.setStringAsync(node.log());
+    shell.toast(t('profile.logCopied'), 'success');
   };
 
   return (
@@ -55,6 +65,10 @@ export function ProfileSheet({ onClose }: Props) {
         autoFocus
         onSubmit={save}
       />
+      <View style={{ marginTop: theme.space[5], gap: theme.space[2], alignItems: 'flex-start' }}>
+        <Txt variant="faint">{t('profile.logHint')}</Txt>
+        <Button label={t('profile.copyLog')} kind="ghost" onPress={copyLog} />
+      </View>
     </Sheet>
   );
 }

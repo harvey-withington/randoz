@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { spawn } from 'node:child_process'
 import createTestnet from 'hyperdht/testnet.js'
 import { createNode } from '../src/index.js'
 import { randomBytes } from '../src/crypto.js'
@@ -59,7 +60,7 @@ async function setup(t) {
     await until(async () => (await view(bob, b)).writable === true, 'bob to become a writer')
     return { alice, bob, a, b, code }
   }
-  return { start, file, root, view, photo, pair, nodes }
+  return { start, file, root, view, photo, pair, nodes, bootstrap: testnet.bootstrap }
 }
 
 test('a newcomer joins by invite, and photos travel both ways', async (t) => {
@@ -262,4 +263,40 @@ test('a member that was suspended reconnects quickly when it resumes', async (t)
   await bob.resume()
   await until(async () => (await view(bob, b)).peers === 1, 'bob to reconnect', 8000)
   await until(async () => !!(await view(bob, b)).items[0]?.files.thumbnail, 'the photo to reach bob', 8000)
+})
+
+test('a photo shared again after being unshared shows up promptly', async (t) => {
+  const { view, photo, pair } = await setup(t)
+  const { alice, bob, a, b } = await pair('Again')
+
+  // Either member may be the one doing it: the creator, or someone who joined.
+  for (const [sharer, sharerGroup, watcher, watcherGroup] of [[bob, b, alice, a], [alice, a, bob, b]]) {
+    const first = await sharer.shareItem({ group: sharerGroup, ...photo('one.jpg', 60000, 3000) })
+    await until(async () => (await view(watcher, watcherGroup)).items.length === 1, 'the first share to arrive', 5000)
+    await sharer.unshareItems({ group: sharerGroup, ids: [first.id] })
+    await until(async () => (await view(watcher, watcherGroup)).items.length === 0, 'the unshare to arrive', 5000)
+    const second = await sharer.shareItem({ group: sharerGroup, ...photo('two.jpg', 60000, 3000) })
+    await until(async () => (await view(watcher, watcherGroup)).items[0]?.id === second.id, 'the second share to arrive', 5000)
+    await until(async () => !!(await view(watcher, watcherGroup)).items[0]?.files.thumbnail, 'its thumbnail to arrive', 5000)
+    await sharer.unshareItems({ group: sharerGroup, ids: [second.id] })
+    await until(async () => (await view(watcher, watcherGroup)).items.length === 0, 'the last unshare to arrive', 5000)
+  }
+})
+
+test('a member that vanishes without a word is noticed within half a minute', async (t) => {
+  const { view, start, root, bootstrap } = await setup(t)
+  const alice = await start('alice')
+  const { group: a } = await alice.createGroup({ name: 'Gone' })
+  const { code } = await alice.createInvite({ group: a, kind: 'open' })
+
+  // Bob runs in a process of his own, and is killed: no goodbye is sent.
+  const bob = spawn(process.execPath, [
+    path.join(import.meta.dirname, '..', 'tools', 'member.js'), path.join(root, 'bob'), String(bootstrap[0].port), code
+  ], { stdio: 'inherit' })
+  t.after(() => bob.kill('SIGKILL'))
+  const online = async () => (await view(alice, a)).members.filter((/** @type {any} */ m) => m.online).length
+  await until(async () => (await online()) === 2, 'bob to join')
+
+  bob.kill('SIGKILL')
+  await until(async () => (await online()) === 1 && (await view(alice, a)).peers === 0, 'alice to notice', 30000)
 })
