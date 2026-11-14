@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "RANDOZ",
+    "slug": "randoz",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.goodegg.randoz"
+    },
+    "plugins": [
+      [
+        "expo-bare-kit",
+        {
+          "workers": [
+            [
+              "worklet/worker.js",
+              {
+                "hosts": [
+                  "android-arm64",
+                  "android-x64"
+                ]
+              }
+            ]
+          ]
+        }
+      ],
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "RANDOZ uses the camera to scan a group's invite code.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "RANDOZ needs your photos so you can choose which to share."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "RANDOZ needs your photos so you can choose which to share.",
+          "savePhotosPermission": "RANDOZ saves the photos you choose to your camera roll.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ]
+    ],
+    "scheme": "randoz"
+  }
+}

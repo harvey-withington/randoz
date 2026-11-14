@@ -10,11 +10,14 @@
   },
   "//": [
     "The root scripts are the one command surface for every stack: VS Code tasks, CI and Claude all call",
-    "npm run dev | build | check | test. core/ is the peer-to-peer core (Node and Bare); app/ is the Android app."
+    "npm run dev | build | check | test. core/ is the peer-to-peer core (Node and Bare); app/ is the Android app.",
+    "build makes a signed release APK in dist/ (see docs/BUILDING.md); build:emulator adds the emulator's architecture."
   ],
   "scripts": {
     "website": "node scripts/serve-website.mjs",
-    "check": "npm --prefix core run check",
-    "test": "npm --prefix core test"
+    "build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1",
+    "build:emulator": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1 -Emulator",
+    "check": "npm --prefix core run check && npm --prefix app run check",
+    "test": "npm --prefix core test && npm --prefix app test"
   }
 }
