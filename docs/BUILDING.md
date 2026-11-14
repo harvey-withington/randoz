@@ -32,13 +32,31 @@ First time: `npm install` in `core/` and in `app/`.
 
 The C++ toolchain (NDK, CMake) is downloaded by the first build.
 
+Two more things, once per machine, because of Windows' 260-character path
+limit (the next section has the why):
+
+- **Long-path support on.** In an administrator PowerShell:
+  `reg add HKLM\SYSTEM\CurrentControlSet\Control\FileSystem /v LongPathsEnabled /t REG_DWORD /d 1 /f`
+- **A `ninja` that supports long paths.** The one in the Android SDK's
+  CMake (1.10.2) does not. After the first build has downloaded CMake,
+  replace `%ANDROID_HOME%\cmake\3.22.1\bin\ninja.exe` with version 1.13 or
+  later from <https://github.com/ninja-build/ninja/releases>, keeping the
+  old file beside it.
+
+Without both, the build stops in the C++ step with
+`ninja: error: mkdir(...): No such file or directory`.
+
 ## Why the build runs in another folder
 
 A React Native build writes C++ output whose paths repeat the project path,
-and from a normal checkout they pass Windows' 260-character limit.
-`scripts\build-android.ps1` therefore mirrors `app\` and `core\` to a short
-folder (`S:\rb`, or `RANDOZ_BUILD_DIR`) and builds there. Edit files in the
-repo, never in the mirror: it is overwritten on every build.
+and they pass Windows' 260-character limit. Two measures keep it working:
+long-path support (above), and a short build folder.
+`scripts\build-android.ps1` mirrors `app\` and `core\` to a short folder
+(`S:\rb`, or `RANDOZ_BUILD_DIR`) and builds there. Edit files in the repo,
+never in the mirror: it is overwritten on every build.
+
+With long paths on, building straight from the repo may work and the mirror
+may be unnecessary. That has not been tried.
 
 Two things follow from the core living outside `app\`:
 
