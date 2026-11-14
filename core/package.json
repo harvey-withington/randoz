@@ -1,0 +1,31 @@
+{
+  "name": "@randoz/core",
+  "version": "0.1.0",
+  "description": "RANDOZ's peer-to-peer core: groups, invites, encrypted items. Runs on Node and on Bare.",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "check": "tsc -p .",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "autobase": "7.28.2",
+    "b4a": "1.9.0",
+    "compact-encoding": "3.7.0",
+    "corestore": "7.16.1",
+    "hyperbee": "2.27.3",
+    "hyperblobs": "2.13.0",
+    "hypercore": "11.40.4",
+    "hyperdht": "6.36.0",
+    "hyperswarm": "4.17.2",
+    "protomux": "3.13.1",
+    "sodium-universal": "5.0.1",
+    "udx-native": "1.22.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "6.0.3"
+  }
+}
