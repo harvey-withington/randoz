@@ -156,3 +156,25 @@ test('a group survives the app restarting', async (t) => {
   assert.equal(after.items[0].id, id)
   assert.ok(after.items[0].files.thumbnail)
 })
+
+test('a member that was suspended reconnects quickly when it resumes', async (t) => {
+  const { start, file } = await setup(t)
+  const alice = await start('alice')
+  const bob = await start('bob')
+  await alice.createGroup({ name: 'Sleepy' })
+  const { code } = await alice.createInvite({ kind: 'open' })
+  await bob.joinGroup({ code })
+  await until(async () => (await bob.snapshot()).group?.writable === true, 'bob to become a writer')
+
+  await bob.suspend()
+  await until(async () => (await alice.snapshot()).peers === 0, 'alice to notice bob has gone', 5000)
+
+  // What alice shares while bob is away reaches him once he is back.
+  await alice.shareItem({
+    type: 'photo', name: 'a.jpg', mime: 'image/jpeg', width: 10, height: 10,
+    files: { original: file('a.jpg', 40000), thumbnail: file('a-t.jpg', 2000) }
+  })
+  await bob.resume()
+  await until(async () => (await bob.snapshot()).peers === 1, 'bob to reconnect', 8000)
+  await until(async () => !!(await bob.snapshot()).items[0]?.files.thumbnail, 'the photo to reach bob', 8000)
+})

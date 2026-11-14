@@ -15,6 +15,8 @@ const b4a = require('b4a')
 const { createNode } = require('../../core/src/index.js')
 
 const NEWLINE = String.fromCharCode(10)
+// Core methods the screen may not call: the worklet runs these itself.
+const HIDDEN = ['close', 'suspend', 'resume']
 
 module.exports = function start(ipc) {
   let node = null
@@ -34,9 +36,20 @@ module.exports = function start(ipc) {
       return { state: await node.snapshot() }
     }
     if (!node) throw new Error('The core has not started yet')
-    if (typeof node[method] !== 'function' || method === 'close') throw new Error('Unknown method: ' + method)
+    if (typeof node[method] !== 'function' || HIDDEN.includes(method)) throw new Error('Unknown method: ' + method)
     return (await node[method](params || {})) || {}
   }
+
+  // Android freezes the app when it leaves the screen, and Bare Kit tells us
+  // just before and just after. Without this the connections go stale and
+  // take minutes to recover.
+  // One after the other: a resume that arrives mid-suspend waits its turn.
+  let lifecycle = Promise.resolve()
+  const then = (step) => {
+    lifecycle = lifecycle.then(() => (node ? step(node) : null)).catch(() => {})
+  }
+  Bare.on('suspend', () => then((n) => n.suspend()))
+  Bare.on('resume', () => then((n) => n.resume()))
 
   // The stream can split or join messages, so collect bytes and cut at newlines.
   let pending = ''

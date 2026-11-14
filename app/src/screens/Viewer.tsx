@@ -70,7 +70,8 @@ export function Viewer({ item, onClose }: Props) {
       if (copy.exists) copy.delete();
       new File(toUri(path)).copy(copy);
       await MediaLibrary.Asset.create(copy.uri);
-      copy.delete();
+      // Saving may move the copy into the camera roll, so it may already be gone.
+      if (copy.exists) copy.delete();
       shell.toast(t('viewer.saved'), 'success');
     } catch (err) {
       shell.toast(t('viewer.saveFailed', { reason: (err as Error).message }), 'error');

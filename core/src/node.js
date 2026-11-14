@@ -25,6 +25,7 @@ const TIERS = /** @type {TierName[]} */ (['thumbnail', 'preview', 'original'])
 const EAGER_FETCHES = 4
 const LOOKUP_EVERY_MS = 3000
 const ANNOUNCE_WAIT_MS = 15000
+const LONELY_CHECK_MS = 15000
 
 /** @param {NodeOptions} options */
 export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
@@ -46,6 +47,8 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
   const fetching = new Map()
   /** @type {ReturnType<typeof setTimeout> | null} */ let stateTimer = null
   /** @type {ReturnType<typeof setInterval> | null} */ let lookupTimer = null
+  /** @type {ReturnType<typeof setInterval> | null} */ let lonelyTimer = null
+  let suspended = false
   let closed = false
 
   const log = (/** @type {string} */ text) => onEvent({ type: 'log', text })
@@ -79,6 +82,7 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
 
     swarm = new Hyperswarm({ bootstrap, keyPair: await store.createKeyPair('swarm') })
     swarm.on('connection', onConnection)
+    lonelyTimer = setInterval(lookAgainIfLonely, LONELY_CHECK_MS)
 
     const saved = readSaved().group
     if (saved) await enterGroup(unhex(saved.logKey), unhex(saved.secret))
@@ -88,7 +92,8 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
   async function shut() {
     if (stateTimer) clearTimeout(stateTimer)
     if (lookupTimer) clearInterval(lookupTimer)
-    stateTimer = lookupTimer = null
+    if (lonelyTimer) clearInterval(lonelyTimer)
+    stateTimer = lookupTimer = lonelyTimer = null
     topics.clear()
     fetching.clear()
     if (swarm) await swarm.destroy()
@@ -144,6 +149,13 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
         for (const discovery of topics.values()) discovery.refresh({ client: true, server: false }).catch(() => {})
       }, LOOKUP_EVERY_MS)
     }
+  }
+
+  // A member with nobody connected looks for the others again. Hyperswarm
+  // retries by itself, but backs off for minutes after a few failures.
+  function lookAgainIfLonely() {
+    if (suspended || !base || swarm.connections.size > 0) return
+    for (const discovery of topics.values()) discovery.refresh().catch(() => {})
   }
 
   /** Resolves once the DHT knows we listen on this topic, or after a while anyway. */
@@ -430,6 +442,28 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
       await shut()
       fs.rmSync(storage, { recursive: true, force: true })
       await open()
+    },
+
+    /**
+     * The app is going to the background: the phone is about to freeze us.
+     * Close connections cleanly now, so the others notice at once instead of
+     * waiting for a timeout.
+     */
+    async suspend() {
+      if (suspended || !swarm) return
+      suspended = true
+      await swarm.suspend()
+      await store.suspend()
+    },
+
+    /** The app is back: reopen everything and look for the group straight away. */
+    async resume() {
+      if (!suspended || !swarm) return
+      await store.resume()
+      await swarm.resume()
+      suspended = false
+      for (const discovery of topics.values()) discovery.refresh().catch(() => {})
+      emitState()
     },
 
     snapshot,
