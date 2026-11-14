@@ -397,7 +397,8 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
         id: item.id, type: item.type, name: item.name, mime: item.mime,
         width: item.width, height: item.height, createdAt: item.createdAt,
         size: item.tiers.original.size, sharedBy: item.sharedBy,
-        by: by ? { name: by.name, hue: by.hue, online: by.online } : null,
+        // On your own photos the dot says whether you are connected to anyone.
+        by: by ? { name: by.name, hue: by.hue, online: by.me ? here.size > 0 : by.online } : null,
         mine: item.sharedBy === myKey, saved: savedItems.has(item.id), files
       }
     })
