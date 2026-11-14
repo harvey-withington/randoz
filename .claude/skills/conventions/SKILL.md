@@ -13,10 +13,31 @@ not repeated here; this file holds what is specific to RANDOZ.
 
 ## Architecture
 
-<!-- The rules a change must not break. Replace these examples:
-- `core/` never imports `platform/`; a new OS is a new provider.
-- Pure logic lives in `lib/` and is unit-tested; components get plain values.
--->
+The rules a change must not break. The reasons are in `docs/decisions/`.
+
+- **Two packages.** `core/` is the peer-to-peer core; `app/` is the Android
+  app. `core/` imports nothing from `app/` and nothing from React Native,
+  Expo or Node's own modules: it runs on Node and on Bare, and takes `fs`
+  and `path` from whoever starts it.
+- **The screen never touches the network or the group's data.** It sees
+  the core's state and calls its methods through `useNode()`. The only
+  bridge is `app/worklet/worker.js` and `app/src/lib/core.ts`; a new core
+  method is added to `core/src/node.js` and to `CoreMethods` in
+  `app/src/lib/types.ts`.
+- **Every rule about a group lives in `apply`** (`core/src/group.js`). The
+  log applies whatever a writer appends, so who may do what is decided
+  there, and only there. `apply` reads and writes the view and nothing
+  else: no clocks, no random numbers, no network.
+- **An invite never contains the group's secret.** It holds an invite key;
+  a member checks it and sends the secret over the encrypted connection.
+- **Nothing leaves the phone unencrypted or with its metadata.** Photos are
+  re-encoded before sharing (`app/src/lib/photos.ts`) and every blob is
+  encrypted with its own key (`core/src/crypto.js`).
+- **Versions are pinned exactly** in `core/package.json` and for the Bare
+  packages in `app/package.json`. `core/src/transport.js` depends on the
+  internals of one `udx-native` version: read it before upgrading.
+- `core/` is JavaScript checked by `tsc` through JSDoc, so it runs on Bare
+  with no build step. `app/` is TypeScript.
 
 ## Frontend
 

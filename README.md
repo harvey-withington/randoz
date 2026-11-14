@@ -2,43 +2,46 @@
 
 RANDOZ lets any group, even complete strangers, pool their photos quickly and privately.
 
-<!-- Two or three sentences on what it does and who it's for. Then a screenshot:
-![RANDOZ](website/images/screenshot.png) -->
+No sign-up and no accounts. Start a group, invite people with a QR code or a
+link, share photos from your gallery, and save the ones you love. Photos
+travel directly between phones, encrypted end to end; nothing readable is
+kept on a server. Leaving a group removes your photos from it.
 
-## Install
-
-Download the latest release from
-[GitHub Releases](https://github.com/harvey-withington/randoz-1.0/releases/latest).
-
-<!-- Installer vs portable, first-run warnings (e.g. SmartScreen on unsigned builds), where settings live. -->
-
-## Use
-
-<!-- The two or three things people do first. -->
+**Status: early development.** An Android app is being built. Nothing is
+released yet, and there is no iOS app.
 
 ## Building
 
-Requirements: Node 24 and whatever the app's stack needs (for Go + Wails:
-Go 1.26 and the [Wails CLI](https://wails.io) v2.10).
+Requirements: Node 24, JDK 17 and the Android SDK. `docs/BUILDING.md` has
+the details, including why the build runs from a mirror folder on Windows
+and how signing works.
 
 ```powershell
-npm run dev        # run the app with hot reload
-npm run build      # build it
-npm run check      # type checks and linters
-npm test           # tests
-npm run website    # landing page on http://localhost:5180
+npm run check            # type checks
+npm test                 # tests
+npm run build            # signed release APK in dist\
+npm run build:emulator   # the same, plus the emulator's architecture
+npm run website          # landing page on http://localhost:5180
 ```
 
 The npm scripts are the only entry points; VS Code tasks and CI call the
-same ones. See the `//` note in `package.json` for wiring them to a stack.
+same ones.
 
 | Folder | What |
 |---|---|
-| `app/` | The main app |
-| `website/` | The landing page, published to GitHub Pages by `.github/workflows/deploy-pages.yml` |
-| `docs/` | UI conventions and decision records |
-| `scripts/` | Build and dev helpers |
+| `core/` | The peer-to-peer core: groups, invites, encrypted items. Runs on Node and on Bare |
+| `app/` | The Android app (React Native), with the core in a Bare worklet |
+| `docs/` | `BUILDING.md`, `UI-CONVENTIONS.md` (the frontend contract) and `decisions/` |
 | `spikes/` | Throwaway proofs of the technology, each with its own README |
+| `website/` | The landing page, published to GitHub Pages by `.github/workflows/deploy-pages.yml` |
+| `scripts/` | Build and dev helpers |
+
+## How it works
+
+RANDOZ is built on the [Holepunch](https://holepunch.to) modules: Hyperswarm
+finds the other phones and connects to them directly, an Autobase log holds
+the group's state, and each member's photos live as encrypted blobs on
+their own Hypercore. `docs/decisions/` records why.
 
 ## Licence
 
