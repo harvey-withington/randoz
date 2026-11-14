@@ -41,7 +41,8 @@ The rules a change must not break. The reasons are in `docs/decisions/`.
   re-encoded before sharing (`app/src/lib/photos.ts`) and every blob is
   encrypted with its own key (`core/src/crypto.js`).
 - **Versions are pinned exactly** in `core/package.json` and for the Bare
-  packages in `app/package.json`. `core/src/transport.js` depends on the
+  packages in `app/package.json`. `core/patches/apply.cjs` changes one file
+  of `hyperdht` after install, and `core/src/transport.js` depends on the
   internals of one `udx-native` version: read it before upgrading.
 - `core/` is JavaScript checked by `tsc` through JSDoc, so it runs on Bare
   with no build step. `app/` is TypeScript.

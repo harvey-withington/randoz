@@ -1,4 +1,5 @@
 import test from 'node:test'
+import fs from 'node:fs'
 import assert from 'node:assert/strict'
 import { CIPHER_CHUNK, decryptChunk, derive, encryptBlob, newBlobKey, randomBytes, unwrapKey, wrapKey } from '../src/crypto.js'
 import { checkInviteProof, createInvite, decodeInvite, encodeInvite, inviteId, inviteProof, inviteTopic } from '../src/invite.js'
@@ -77,6 +78,11 @@ test('an invite proof only works for the member it was made for', () => {
   assert.ok(checkInviteProof(invite.key, member, proof))
   assert.ok(!checkInviteProof(invite.key, randomBytes(32), proof))
   assert.ok(!checkInviteProof(createInvite('open').key, member, proof))
+})
+
+test('the same-network shortcut patch is applied to hyperdht', () => {
+  const file = new URL('../node_modules/hyperdht/lib/connect.js', import.meta.url)
+  assert.ok(fs.readFileSync(file, 'utf8').includes('RANDOZ patch'), 'run: node patches/apply.cjs')
 })
 
 test('a nickname is stable for a key and differs between keys', () => {

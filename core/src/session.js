@@ -108,6 +108,12 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
     await store.ready()
     swarm = new Hyperswarm({ dht: sharedDht(dht), keyPair: await store.createKeyPair('swarm') })
     swarm.on('connection', onConnection)
+    let seen = ''
+    swarm.on('update', () => {
+      if (!swarm) return
+      const now = `found ${swarm.peers.size}, trying ${swarm.connecting}, connected ${swarm.connections.size}`
+      if (now !== seen) log((seen = now))
+    })
     lonelyTimer = setInterval(() => lookAgainIfLonely().catch(() => {}), LONELY_CHECK_MS)
 
     const saved = readSaved()
@@ -391,7 +397,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
         id: item.id, type: item.type, name: item.name, mime: item.mime,
         width: item.width, height: item.height, createdAt: item.createdAt,
         size: item.tiers.original.size, sharedBy: item.sharedBy,
-        by: by ? { name: by.name, hue: by.hue } : null,
+        by: by ? { name: by.name, hue: by.hue, online: by.online } : null,
         mine: item.sharedBy === myKey, saved: savedItems.has(item.id), files
       }
     })
