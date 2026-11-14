@@ -110,6 +110,15 @@ export function IdentitiesSheet({ onClose }: Props) {
             }}
           />
         ) : null}
+        <Txt variant="faint">{t('settings.stayHint')}</Txt>
+        <Button
+          label={t(node.state?.settings.stayConnected === false ? 'settings.stayOff' : 'settings.stayOn')}
+          kind="ghost"
+          onPress={() => {
+            const next = node.state?.settings.stayConnected === false;
+            node.call('setSettings', { stayConnected: next }).catch(() => {});
+          }}
+        />
         <Txt variant="faint">{t('settings.logHint')}</Txt>
         <Button label={t('settings.copyLog')} kind="ghost" onPress={copyLog} />
       </View>

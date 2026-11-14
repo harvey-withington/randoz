@@ -3,6 +3,8 @@
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Paths } from 'expo-file-system';
+import { t } from '../i18n';
+import { askToNotify, keepConnected } from '../lib/background';
 import { startCore, type Core } from '../lib/core';
 import type { CoreMethods, NodeState } from '../lib/types';
 
@@ -32,9 +34,20 @@ export function NodeProvider({ children }: Props) {
   const core = useRef<Core | null>(null);
   const [state, setState] = useState<NodeState | null>(null);
   const [startError, setStartError] = useState('');
+  // The newest state, for a decision made when the app leaves the screen.
+  const latest = useRef<NodeState | null>(null);
+  latest.current = state;
+
+  // In a group and wanting to stay connected: ask once to show the
+  // notification that says so.
+  const staying = state !== null && state.settings.stayConnected && state.groups.length > 0;
+  useEffect(() => {
+    if (staying) askToNotify().catch(() => {});
+  }, [staying]);
 
   useEffect(() => {
     let stop: (() => void) | undefined;
+    let release: (() => void) | undefined;
     let cancelled = false;
     (async () => {
       const started = await startCore();
@@ -43,6 +56,10 @@ export function NodeProvider({ children }: Props) {
         return;
       }
       core.current = started;
+      release = keepConnected({
+        wanted: () => !!latest.current && latest.current.settings.stayConnected && latest.current.groups.length > 0,
+        words: () => ({ title: t('background.title'), text: t('background.text'), stop: t('background.stop') }),
+      });
       stop = started.onState(setState);
       const storage = toPath(Paths.document.uri) + '/randoz';
       const { state: first } = await started.call('init', { storage });
@@ -51,6 +68,7 @@ export function NodeProvider({ children }: Props) {
     return () => {
       cancelled = true;
       stop?.();
+      release?.();
       // Free the core's storage for whichever screen starts next.
       core.current?.stop().catch(() => {});
       core.current = null;

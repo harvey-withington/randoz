@@ -36,7 +36,8 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
   /** @type {string | null} the identity chosen last, offered first next time */
   let lastIdentity = null
   // shareReminder: ask "everyone will see them" before each share.
-  let settings = { shareReminder: true }
+  // stayConnected: keep the connection while the app is off the screen.
+  let settings = { shareReminder: true, stayConnected: true }
   /** @type {ReturnType<typeof setTimeout> | null} */ let stateTimer = null
   let closed = false
   let suspended = false
@@ -214,10 +215,11 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
     /**
      * Changes how the app behaves on this device. Nothing here is told to
      * anyone else.
-     * @param {{ shareReminder?: boolean }} params
+     * @param {{ shareReminder?: boolean, stayConnected?: boolean }} params
      */
-    async setSettings({ shareReminder }) {
+    async setSettings({ shareReminder, stayConnected }) {
       if (typeof shareReminder === 'boolean') settings = { ...settings, shareReminder }
+      if (typeof stayConnected === 'boolean') settings = { ...settings, stayConnected }
       writeSaved()
       emitState()
     },

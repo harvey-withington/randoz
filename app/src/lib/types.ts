@@ -101,7 +101,11 @@ export interface NodeState {
   /** The identity chosen last, offered first next time. */
   lastIdentity: string | null;
   /** shareReminder: ask before each share who will see the photos. */
-  settings: { shareReminder: boolean };
+  settings: {
+    shareReminder: boolean;
+    /** Keep the connection while the app is off the screen. */
+    stayConnected: boolean;
+  };
   groups: (Group | JoiningGroup)[];
 }
 
@@ -133,5 +137,5 @@ export interface CoreMethods {
   };
   deleteIdentity: { params: { id: string }; result: object };
   setGroupIdentity: { params: { group: string; identity: string | null }; result: object };
-  setSettings: { params: { shareReminder?: boolean }; result: object };
+  setSettings: { params: { shareReminder?: boolean; stayConnected?: boolean }; result: object };
 }

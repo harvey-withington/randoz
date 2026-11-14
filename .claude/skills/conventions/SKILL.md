@@ -34,6 +34,10 @@ The rules a change must not break. The reasons are in `docs/decisions/`.
   folder. Sessions share only the node's DHT. The one exception is the
   user's to make: an identity (name, picture, a line about them) lives on
   the device, and a group is told a copy only when the user picks it there.
+- **The app decides when the core sleeps** (`app/src/lib/background.ts`).
+  Off the screen it either starts the foreground service in
+  `app/modules/keep-alive` and stays awake, or lets the worklet sleep.
+  Nothing else suspends or resumes the worklet.
 - **One core at a time.** The worklet closes the core when it stops, and
   the screen stops the worklet when it goes away; a second core on the same
   storage cannot open it.

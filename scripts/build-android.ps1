@@ -22,7 +22,7 @@ $mirror = if ($env:RANDOZ_BUILD_DIR) { $env:RANDOZ_BUILD_DIR } else { 'S:\rb' }
 $env:RANDOZ_CXX_DIR = Join-Path $mirror 'cxx'
 
 foreach ($part in 'app', 'core') {
-  robocopy (Join-Path $repo $part) (Join-Path $mirror $part) /MIR /XD node_modules android .expo /NFL /NDL /NJH /NJS /NP | Out-Null
+  robocopy (Join-Path $repo $part) (Join-Path $mirror $part) /MIR /XD node_modules .expo (Join-Path $repo 'app\android') /NFL /NDL /NJH /NJS /NP | Out-Null
   if ($LASTEXITCODE -ge 8) { throw "robocopy failed for $part ($LASTEXITCODE)" }
 }
 if ($SyncOnly) { "synced to $mirror"; exit 0 }

@@ -73,9 +73,16 @@
 
   "settings.remindAgain": "Ask before sharing again",
   "settings.remindOn": "You'll be asked before each share",
+  "settings.stayHint": "RANDOZ can stay connected while it's off the screen or the phone is locked, so photos keep arriving. Android shows a notification while it does, and it uses some battery.",
+  "settings.stayOn": "Staying connected in the background: on",
+  "settings.stayOff": "Staying connected in the background: off",
   "settings.copyLog": "Copy connection log",
   "settings.logCopied": "Log copied",
   "settings.logHint": "If something isn't arriving, this log helps work out why. It holds times and connection events, no photos or names.",
+
+  "background.title": "RANDOZ is connected",
+  "background.text": "Photos keep arriving while it's in the background.",
+  "background.stop": "Disconnect",
 
   "conn.notConnected": "Not connected",
   "conn.count": "Connected · {online} of {total} others online",
