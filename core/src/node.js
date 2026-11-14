@@ -26,6 +26,8 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
   /** @type {Map<string, Session>} */
   const sessions = new Map()
   let profile = { name: '' }
+  // shareReminder: ask "everyone will see them" before each share.
+  let settings = { shareReminder: true }
   /** @type {ReturnType<typeof setTimeout> | null} */ let stateTimer = null
   let closed = false
   let suspended = false
@@ -40,7 +42,7 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
     }
   }
 
-  const writeSaved = () => fs.writeFileSync(savedFile, JSON.stringify({ profile }))
+  const writeSaved = () => fs.writeFileSync(savedFile, JSON.stringify({ profile, settings }))
 
   /** @param {string} id */
   async function openSession(id) {
@@ -105,7 +107,7 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
     const groups = await Promise.all([...sessions.values()].map((session) => session.snapshot()))
     // Newest first: the group you just started or joined is at the top.
     groups.sort((a, b) => b.joinedAt - a.joinedAt)
-    return { profile: { ...profile }, groups }
+    return { profile: { ...profile }, settings: { ...settings }, groups }
   }
 
   const api = {
@@ -163,6 +165,17 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
     },
 
     /**
+     * Changes how the app behaves on this device. Nothing here is told to
+     * anyone else.
+     * @param {{ shareReminder?: boolean }} params
+     */
+    async setSettings({ shareReminder }) {
+      if (typeof shareReminder === 'boolean') settings = { ...settings, shareReminder }
+      writeSaved()
+      emitState()
+    },
+
+    /**
      * Sets the name other members see, in every group. Empty goes back to
      * the random nickname each group gives you.
      * @param {{ name: string }} params
@@ -210,6 +223,7 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
   // Before groups had a folder each, the one group lived here. Clear it away.
   for (const old of ['cores', 'cache']) fs.rmSync(path.join(storage, old), { recursive: true, force: true })
   profile = { name: '', ...readSaved().profile }
+  settings = { ...settings, ...readSaved().settings }
   dht = new DHT({ bootstrap })
   // If a group cannot be opened, say so and stop. Starting without it would
   // show an empty list, which looks like the groups are gone.

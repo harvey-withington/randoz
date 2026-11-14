@@ -49,6 +49,8 @@
   "profile.save": "Save",
   "profile.saved": "Name saved",
   "profile.cleared": "You're anonymous again",
+  "profile.remindAgain": "Ask before sharing again",
+  "profile.remindOn": "You'll be asked before each share",
   "profile.copyLog": "Copy connection log",
   "profile.logCopied": "Log copied",
   "profile.logHint": "If something isn't arriving, this log helps work out why. It holds times and connection events, no photos or names.",
@@ -93,6 +95,7 @@
   "confirmShare.titleOne": "Share this photo?",
   "confirmShare.message": "Everyone in {group} will see them and can save them. Leaving the group removes them from RANDOZ, not from anyone's camera roll.",
   "confirmShare.confirm": "Share",
+  "confirmShare.optOut": "Don't show this again",
 
   "invite.title": "Invite people",
   "invite.kindOpen": "Shareable invite",
@@ -129,6 +132,9 @@
   "viewer.saveDenied": "RANDOZ needs permission to save to your camera roll.",
   "viewer.unshare": "Unshare",
   "viewer.loading": "Fetching the photo…",
+  "viewer.waiting": "Waiting for someone who has this photo to connect…",
+  "viewer.cantSave": "You're not connected to anyone in this group, so the full-size photo can't be fetched. You can save it once someone who has it is online.",
+  "viewer.savingWaiting": "Waiting for {name}…",
   "viewer.loadFailed": "Couldn't fetch this photo. Its owner, or someone who has it, needs RANDOZ open.",
   "viewer.confirmUnshareMessage": "It disappears from everyone's gallery in RANDOZ. Copies people already saved to their camera roll stay with them.",
 

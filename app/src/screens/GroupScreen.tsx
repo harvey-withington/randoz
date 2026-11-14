@@ -74,12 +74,18 @@ export function GroupScreen({ group, onBack }: Props) {
     try {
       const photos = await pickPhotos();
       if (photos.length === 0) return;
-      const ok = await shell.confirm({
-        title: photos.length === 1 ? t('confirmShare.titleOne') : t('confirmShare.title', { count: photos.length }),
-        message: t('confirmShare.message', { group: group.name }),
-        confirmLabel: t('confirmShare.confirm'),
-      });
-      if (!ok) return;
+      if (node.state?.settings.shareReminder !== false) {
+        const ok = await shell.confirm({
+          title: photos.length === 1 ? t('confirmShare.titleOne') : t('confirmShare.title', { count: photos.length }),
+          message: t('confirmShare.message', { group: group.name }),
+          confirmLabel: t('confirmShare.confirm'),
+          optOut: t('confirmShare.optOut'),
+          onOptOut: () => {
+            node.call('setSettings', { shareReminder: false }).catch(() => {});
+          },
+        });
+        if (!ok) return;
+      }
       for (let done = 0; done < photos.length; done++) {
         setProgress(t('group.sharing', { done: done + 1, total: photos.length }));
         await node.call('shareItem', { group: group.id, ...(await prepare(photos[done])) });
@@ -232,7 +238,7 @@ export function GroupScreen({ group, onBack }: Props) {
 
       {inviting ? <InviteSheet group={group} onClose={() => setInviting(false)} /> : null}
       {showMembers ? <MembersSheet group={group} onClose={() => setShowMembers(false)} /> : null}
-      {viewed ? <Viewer group={group.id} item={viewed} onClose={() => setViewing(null)} /> : null}
+      {viewed ? <Viewer group={group.id} item={viewed} connected={online} onClose={() => setViewing(null)} /> : null}
     </View>
   );
 }

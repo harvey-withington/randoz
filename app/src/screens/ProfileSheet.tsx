@@ -66,6 +66,18 @@ export function ProfileSheet({ onClose }: Props) {
         onSubmit={save}
       />
       <View style={{ marginTop: theme.space[5], gap: theme.space[2], alignItems: 'flex-start' }}>
+        {node.state?.settings.shareReminder === false ? (
+          <Button
+            label={t('profile.remindAgain')}
+            kind="ghost"
+            onPress={() => {
+              node.call('setSettings', { shareReminder: true }).then(
+                () => shell.toast(t('profile.remindOn'), 'success'),
+                () => {},
+              );
+            }}
+          />
+        ) : null}
         <Txt variant="faint">{t('profile.logHint')}</Txt>
         <Button label={t('profile.copyLog')} kind="ghost" onPress={copyLog} />
       </View>

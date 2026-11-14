@@ -4,7 +4,7 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CircleAlert, CircleCheck, Info, X } from 'lucide-react-native';
+import { Check, CircleAlert, CircleCheck, Info, X } from 'lucide-react-native';
 import { Button } from '../components/Button';
 import { Sheet } from '../components/Sheet';
 import { Txt } from '../components/Txt';
@@ -19,6 +19,9 @@ export interface ConfirmOptions {
   confirmLabel: string;
   /** A destructive action: the confirm button is in the danger colour. */
   danger?: boolean;
+  /** Adds a tick box with this label. Ticked and confirmed, onOptOut runs. */
+  optOut?: string;
+  onOptOut?: () => void;
 }
 
 export interface Shell {
@@ -43,6 +46,7 @@ interface Props {
 export function ShellProvider({ children }: Props) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [asking, setAsking] = useState<ConfirmOptions | null>(null);
+  const [optedOut, setOptedOut] = useState(false);
   const answer = useRef<((ok: boolean) => void) | null>(null);
   const nextId = useRef(1);
 
@@ -59,6 +63,7 @@ export function ShellProvider({ children }: Props) {
       confirm(options) {
         return new Promise<boolean>((resolve) => {
           answer.current = resolve;
+          setOptedOut(false);
           setAsking(options);
         });
       },
@@ -67,6 +72,7 @@ export function ShellProvider({ children }: Props) {
   );
 
   const settle = (ok: boolean) => {
+    if (ok && optedOut) asking?.onOptOut?.();
     answer.current?.(ok);
     answer.current = null;
     setAsking(null);
@@ -92,6 +98,7 @@ export function ShellProvider({ children }: Props) {
           }
         >
           <Txt>{asking.message}</Txt>
+          {asking.optOut ? <TickBox label={asking.optOut} ticked={optedOut} onChange={setOptedOut} /> : null}
         </Sheet>
       ) : null}
     </ShellContext.Provider>
@@ -102,6 +109,47 @@ export function useShell(): Shell {
   const shell = useContext(ShellContext);
   if (!shell) throw new Error('useShell needs a ShellProvider above it');
   return shell;
+}
+
+interface TickBoxProps {
+  label: string;
+  ticked: boolean;
+  onChange: (ticked: boolean) => void;
+}
+
+function TickBox({ label, ticked, onChange }: TickBoxProps) {
+  const theme = useTheme();
+  const c = theme.color;
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: ticked }}
+      onPress={() => onChange(!ticked)}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: theme.space[3],
+        minHeight: theme.touch,
+        marginTop: theme.space[3],
+      }}
+    >
+      <View
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: theme.radius.sm,
+          borderWidth: 1.5,
+          borderColor: ticked ? c.accent : c.borderStrong,
+          backgroundColor: ticked ? c.accent : 'transparent',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {ticked ? <Check size={16} color={c.accentText} /> : null}
+      </View>
+      <Txt style={{ flex: 1 }}>{label}</Txt>
+    </Pressable>
+  );
 }
 
 interface ToastsProps {

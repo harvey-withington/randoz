@@ -7,6 +7,8 @@ export interface Person {
   /** The name to show: the one they chose, or else their nickname. */
   name: string;
   hue: number;
+  /** Connected to this phone right now, where that is known. */
+  online?: boolean;
 }
 
 export interface Member extends Person {
@@ -73,6 +75,8 @@ export interface Group {
 
 export interface NodeState {
   profile: { name: string };
+  /** shareReminder: ask before each share who will see the photos. */
+  settings: { shareReminder: boolean };
   groups: (Group | JoiningGroup)[];
 }
 
@@ -98,4 +102,5 @@ export interface CoreMethods {
   markSaved: { params: { group: string; ids: string[] }; result: object };
   leaveGroup: { params: { group: string }; result: object };
   setProfile: { params: { name: string }; result: object };
+  setSettings: { params: { shareReminder?: boolean }; result: object };
 }

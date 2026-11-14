@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Download, EyeOff } from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
 import { Button, IconButton } from '../components/Button';
+import { ConnectionDot } from '../components/ConnectionDot';
 import { Txt } from '../components/Txt';
 import { t } from '../i18n';
 import { saveToCameraRoll } from '../lib/save';
@@ -16,6 +17,8 @@ interface Props {
   /** The id of the group the photo is in. */
   group: string;
   item: Item;
+  /** Whether this phone is connected to anyone in the group. */
+  connected: boolean;
   onClose: () => void;
 }
 
@@ -26,7 +29,7 @@ interface Props {
  * It is a layer over the gallery, not a system dialog, so toasts show above
  * it. Back closes it.
  */
-export function Viewer({ group, item, onClose }: Props) {
+export function Viewer({ group, item, connected, onClose }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const node = useNode();
@@ -37,6 +40,9 @@ export function Viewer({ group, item, onClose }: Props) {
   const best = item.files.preview ?? item.files.original ?? item.files.thumbnail;
   const sharp = item.files.preview !== null || item.files.original !== null;
   const { id } = item;
+  // The full-size photo comes from its owner, or from anyone who has fetched it.
+  const ownerOnline = item.mine || item.by?.online === true;
+  const cantSave = item.files.original === null && !connected;
 
   useEffect(() => {
     if (sharp) return;
@@ -103,9 +109,14 @@ export function Viewer({ group, item, onClose }: Props) {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.space[2], padding: theme.space[2] }}>
         <IconButton label={t('common.back')} icon={ArrowLeft} onPress={onClose} />
         {item.by ? <Avatar person={item.by} size={28} /> : null}
-        <Txt style={{ flex: 1 }} numberOfLines={1}>
-          {item.mine ? t('viewer.byYou') : t('viewer.by', { name: item.by?.name ?? '' })}
-        </Txt>
+        <View style={{ flex: 1, marginLeft: theme.space[1] }}>
+          <Txt numberOfLines={1}>
+            {item.mine ? t('viewer.byYou') : t('viewer.by', { name: item.by?.name ?? '' })}
+          </Txt>
+          {item.mine || !item.by ? null : (
+            <ConnectionDot online={ownerOnline} label={t(ownerOnline ? 'conn.online' : 'conn.offline')} />
+          )}
+        </View>
       </View>
 
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -136,12 +147,17 @@ export function Viewer({ group, item, onClose }: Props) {
           >
             {failed ? null : <ActivityIndicator size="small" color={c.accent} />}
             <Txt variant="muted" color={failed ? c.danger : undefined} style={{ flexShrink: 1 }}>
-              {t(failed ? 'viewer.loadFailed' : 'viewer.loading')}
+              {t(failed ? 'viewer.loadFailed' : connected ? 'viewer.loading' : 'viewer.waiting')}
             </Txt>
           </View>
         ) : null}
       </View>
 
+      {cantSave && !saving ? (
+        <Txt variant="muted" center style={{ paddingHorizontal: theme.space[4], paddingTop: theme.space[3] }}>
+          {t('viewer.cantSave')}
+        </Txt>
+      ) : null}
       <View
         style={{
           flexDirection: 'row',
@@ -152,10 +168,17 @@ export function Viewer({ group, item, onClose }: Props) {
         }}
       >
         <Button
-          label={saving ? t('viewer.saving') : t(item.saved ? 'viewer.saveAgain' : 'viewer.save')}
+          label={
+            saving
+              ? item.files.original === null && !ownerOnline
+                ? t('viewer.savingWaiting', { name: item.by?.name ?? '' })
+                : t('viewer.saving')
+              : t(item.saved ? 'viewer.saveAgain' : 'viewer.save')
+          }
           icon={Download}
           kind={item.saved ? 'default' : 'primary'}
           busy={saving}
+          disabled={cantSave && !saving}
           onPress={save}
         />
         {item.mine ? <Button label={t('viewer.unshare')} icon={EyeOff} kind="danger" onPress={unshare} /> : null}

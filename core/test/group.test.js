@@ -229,10 +229,12 @@ test('leaving removes your photos for the others and wipes the group from this d
   assert.equal((await view(alice, a)).members.length, 1)
 })
 
-test('groups, the profile and saved marks survive the app restarting', async (t) => {
+test('groups, the profile, settings and saved marks survive the app restarting', async (t) => {
   const { start, view, photo, nodes } = await setup(t)
   const alice = await start('alice')
   await alice.setProfile({ name: 'Alice' })
+  assert.equal((await alice.snapshot()).settings.shareReminder, true)
+  await alice.setSettings({ shareReminder: false })
   const { group } = await alice.createGroup({ name: 'Persistent' })
   const { id } = await alice.shareItem({ group, ...photo('a.jpg', 70000, 3000) })
   await alice.markSaved({ group, ids: [id] })
@@ -243,6 +245,7 @@ test('groups, the profile and saved marks survive the app restarting', async (t)
 
   const again = await start('alice')
   assert.equal((await again.snapshot()).profile.name, 'Alice')
+  assert.equal((await again.snapshot()).settings.shareReminder, false)
   const after = await view(again, group)
   assert.equal(after.name, 'Persistent')
   assert.equal(after.me.key, before.me.key)
