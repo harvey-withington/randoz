@@ -1,4 +1,4 @@
-// Two or three nodes on a private DHT, exercising a group end to end.
+// Two or three nodes on a private DHT, exercising groups end to end.
 
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -31,8 +31,8 @@ async function setup(t) {
     fs.rmSync(root, { recursive: true, force: true })
   })
   /** @param {string} name */
-  const start = async (name, bootstrap = testnet.bootstrap) => {
-    const node = await createNode({ storage: path.join(root, name), fs, path, bootstrap, onEvent() {} })
+  const start = async (name) => {
+    const node = await createNode({ storage: path.join(root, name), fs, path, bootstrap: testnet.bootstrap, onEvent() {} })
     nodes.push(node)
     return node
   }
@@ -42,139 +42,224 @@ async function setup(t) {
     fs.writeFileSync(p, randomBytes(size))
     return p
   }
-  return { start, file, root }
+  /** One group as a node sees it. @param {any} node @param {string} id */
+  const view = async (node, id) => (await node.snapshot()).groups.find((/** @type {any} */ g) => g.id === id)
+  /** A photo with the sizes given. @param {string} name @param {number} original @param {number} [thumbnail] */
+  const photo = (name, original, thumbnail) => ({
+    type: 'photo', name, mime: 'image/jpeg', width: 10, height: 10,
+    files: { original: file(name, original), ...(thumbnail ? { thumbnail: file('t-' + name, thumbnail) } : {}) }
+  })
+  /** Alice starts a group and Bob joins it. Returns each one's id for the group. */
+  const pair = async (name = 'Whale tour') => {
+    const alice = await start('alice')
+    const bob = await start('bob')
+    const { group: a } = await alice.createGroup({ name })
+    const { code } = await alice.createInvite({ group: a, kind: 'open' })
+    const { group: b } = await bob.joinGroup({ code })
+    await until(async () => (await view(bob, b)).writable === true, 'bob to become a writer')
+    return { alice, bob, a, b, code }
+  }
+  return { start, file, root, view, photo, pair, nodes }
 }
 
 test('a newcomer joins by invite, and photos travel both ways', async (t) => {
-  const { start, file } = await setup(t)
+  const { view, photo, pair, start } = await setup(t)
   const alice = await start('alice')
   const bob = await start('bob')
+  const { group: a } = await alice.createGroup({ name: 'Whale tour' })
+  const { code } = await alice.createInvite({ group: a, kind: 'open' })
 
-  await alice.createGroup({ name: 'Whale tour' })
-  const { code } = await alice.createInvite({ kind: 'open' })
+  const { group: b } = await bob.joinGroup({ code })
+  assert.equal((await view(bob, b)).joining, true)
+  await until(async () => (await view(bob, b)).writable === true, 'bob to become a writer')
+  void pair
 
-  await bob.joinGroup({ code })
-  assert.equal((await bob.snapshot()).joining, true)
-  await until(async () => (await bob.snapshot()).group?.writable === true, 'bob to become a writer')
-
-  const bobView = await bob.snapshot()
-  assert.equal(bobView.group.name, 'Whale tour')
+  const bobView = await view(bob, b)
+  assert.equal(bobView.name, 'Whale tour')
   assert.equal(bobView.members.length, 2)
   assert.equal(bobView.members.filter((/** @type {any} */ m) => m.me).length, 1)
 
-  const original = file('a-original.jpg', 300000)
-  const thumbnail = file('a-thumb.jpg', 9000)
-  const { id } = await alice.shareItem({
-    type: 'photo', name: 'whale.jpg', mime: 'image/jpeg', width: 4000, height: 3000,
-    files: { original, thumbnail }
-  })
+  const shared = photo('whale.jpg', 300000, 9000)
+  const { id } = await alice.shareItem({ group: a, ...shared })
 
   // The thumbnail arrives by itself; the original only when asked for.
-  await until(async () => !!(await bob.snapshot()).items[0]?.files.thumbnail, 'the thumbnail to reach bob')
-  const seen = (await bob.snapshot()).items[0]
+  await until(async () => !!(await view(bob, b)).items[0]?.files.thumbnail, 'the thumbnail to reach bob')
+  const seen = (await view(bob, b)).items[0]
   assert.equal(seen.id, id)
   assert.equal(seen.mine, false)
+  assert.equal(seen.saved, false)
   assert.equal(seen.files.original, null)
   assert.match(seen.by.name, / /)
-  assert.deepEqual(fs.readFileSync(seen.files.thumbnail), fs.readFileSync(thumbnail))
+  assert.deepEqual(fs.readFileSync(seen.files.thumbnail), fs.readFileSync(shared.files.thumbnail))
 
-  const fetched = await bob.getTier({ id, tier: 'original' })
-  assert.deepEqual(fs.readFileSync(fetched.path), fs.readFileSync(original))
+  const fetched = await bob.getTier({ group: b, id, tier: 'original' })
+  assert.deepEqual(fs.readFileSync(fetched.path), fs.readFileSync(shared.files.original))
 
-  const back = await bob.shareItem({
-    type: 'photo', name: 'seal.jpg', mime: 'image/jpeg', width: 800, height: 600,
-    files: { original: file('b-original.jpg', 120000), thumbnail: file('b-thumb.jpg', 5000) }
-  })
-  await until(async () => (await alice.snapshot()).items.length === 2, 'bob\'s item to reach alice')
+  await bob.markSaved({ group: b, ids: [id] })
+  assert.equal((await view(bob, b)).items[0].saved, true)
+
+  const back = await bob.shareItem({ group: b, ...photo('seal.jpg', 120000, 5000) })
   await until(
-    async () => !!(await alice.snapshot()).items.find((/** @type {any} */ i) => i.id === back.id)?.files.thumbnail,
+    async () => !!(await view(alice, a)).items.find((/** @type {any} */ i) => i.id === back.id)?.files.thumbnail,
     'bob\'s thumbnail to reach alice'
   )
-
-  // Unsharing takes the item out of the other member's gallery.
-  await alice.unshareItem({ id })
-  await until(async () => (await bob.snapshot()).items.length === 1, 'the unshare to reach bob')
 })
 
-test('a revoked invite no longer lets anyone in', async (t) => {
-  const { start } = await setup(t)
-  const alice = await start('alice')
-  const carol = await start('carol')
+test('members see who is online, and each other\'s chosen names', async (t) => {
+  const { view, pair } = await setup(t)
+  const { alice, bob, a, b } = await pair()
 
-  await alice.createGroup({ name: 'Closed' })
-  const { code } = await alice.createInvite({ kind: 'open' })
-  const [invite] = (await alice.snapshot()).invites
-  assert.equal(invite.code, code)
-  await alice.revokeInvite({ id: invite.id })
-  await until(async () => (await alice.snapshot()).invites.length === 0, 'the revoke to apply')
+  await until(async () => (await view(alice, a)).members.every((/** @type {any} */ m) => m.online), 'alice to see bob online')
+  await until(async () => (await view(bob, b)).members.every((/** @type {any} */ m) => m.online), 'bob to see alice online')
 
-  await carol.joinGroup({ code })
-  await new Promise((resolve) => setTimeout(resolve, 4000))
-  const state = await carol.snapshot()
-  assert.equal(state.group, null)
-  assert.equal(state.joining, true)
+  await bob.setProfile({ name: '  Bob the Builder  ' })
+  assert.equal((await bob.snapshot()).profile.name, 'Bob the Builder')
+  await until(
+    async () => (await view(alice, a)).members.some((/** @type {any} */ m) => m.name === 'Bob the Builder' && !m.me),
+    'bob\'s name to reach alice'
+  )
+  const bobAsAlice = (await view(alice, a)).members.find((/** @type {any} */ m) => !m.me)
+  assert.match(bobAsAlice.nickname, / /) // the nickname is still there underneath
+
+  // An empty name goes back to the nickname.
+  await bob.setProfile({ name: '' })
+  await until(
+    async () => (await view(alice, a)).members.find((/** @type {any} */ m) => !m.me).name === bobAsAlice.nickname,
+    'bob\'s nickname to come back'
+  )
+
+  await bob.suspend()
+  await until(async () => (await view(alice, a)).members.find((/** @type {any} */ m) => !m.me).online === false, 'alice to see bob offline', 8000)
 })
 
-test('leaving removes your photos for the others and wipes this device', async (t) => {
-  const { start, file, root } = await setup(t)
+test('several photos can be unshared at once, and only by their owner', async (t) => {
+  const { view, photo, pair } = await setup(t)
+  const { alice, bob, a, b } = await pair()
+
+  const one = await alice.shareItem({ group: a, ...photo('1.jpg', 30000) })
+  const two = await alice.shareItem({ group: a, ...photo('2.jpg', 30000) })
+  const three = await alice.shareItem({ group: a, ...photo('3.jpg', 30000) })
+  await until(async () => (await view(bob, b)).items.length === 3, 'three items to reach bob')
+
+  // Bob cannot unshare Alice's photos.
+  await bob.unshareItems({ group: b, ids: [one.id] })
+  await alice.unshareItems({ group: a, ids: [one.id, three.id] })
+  await until(async () => (await view(bob, b)).items.length === 1, 'the unshare to reach bob')
+  assert.equal((await view(bob, b)).items[0].id, two.id)
+  assert.equal((await view(alice, a)).items.length, 1)
+})
+
+test('a device can be in several groups, each with its own identity', async (t) => {
+  const { view, photo, start } = await setup(t)
   const alice = await start('alice')
   const bob = await start('bob')
 
-  await alice.createGroup({ name: 'Leaving' })
-  const { code } = await alice.createInvite({ kind: 'open' })
-  await bob.joinGroup({ code })
-  await until(async () => (await bob.snapshot()).group?.writable === true, 'bob to become a writer')
+  const { group: a1 } = await alice.createGroup({ name: 'First' })
+  const { group: a2 } = await alice.createGroup({ name: 'Second' })
+  const first = await alice.createInvite({ group: a1, kind: 'open' })
+  const second = await alice.createInvite({ group: a2, kind: 'open' })
 
-  await bob.shareItem({
-    type: 'photo', name: 'b.jpg', mime: 'image/jpeg', width: 10, height: 10,
-    files: { original: file('b.jpg', 50000) }
-  })
-  await until(async () => (await alice.snapshot()).items.length === 1, 'bob\'s item to reach alice')
+  const { group: b1 } = await bob.joinGroup({ code: first.code })
+  const { group: b2 } = await bob.joinGroup({ code: second.code })
+  await until(async () => (await view(bob, b1)).writable === true, 'bob to join the first group')
+  await until(async () => (await view(bob, b2)).writable === true, 'bob to join the second group')
 
-  await bob.leaveGroup()
-  assert.equal((await bob.snapshot()).group, null)
-  assert.deepEqual(fs.readdirSync(path.join(root, 'bob', 'cache')), [])
-  await until(async () => (await alice.snapshot()).items.length === 0, 'bob\'s item to leave alice\'s gallery')
-  assert.equal((await alice.snapshot()).members.length, 1)
+  const state = await bob.snapshot()
+  assert.equal(state.groups.length, 2)
+  assert.deepEqual(state.groups.map((/** @type {any} */ g) => g.name).sort(), ['First', 'Second'])
+  // Nothing links Bob in one group to Bob in the other.
+  assert.notEqual((await view(bob, b1)).me.key, (await view(bob, b2)).me.key)
+
+  // A photo shared to one group stays in that group.
+  await alice.shareItem({ group: a1, ...photo('only-first.jpg', 40000, 2000) })
+  await until(async () => (await view(bob, b1)).items.length === 1, 'the photo to reach bob in the first group')
+  assert.equal((await view(bob, b2)).items.length, 0)
+
+  // Leaving one group leaves the other untouched.
+  await bob.leaveGroup({ group: b1 })
+  assert.equal((await bob.snapshot()).groups.length, 1)
+  await bob.shareItem({ group: b2, ...photo('second.jpg', 40000, 2000) })
+  await until(async () => (await view(alice, a2)).items.length === 1, 'bob\'s photo to reach alice in the second group')
+  await until(async () => (await view(alice, a1)).members.length === 1, 'bob to be gone from the first group')
 })
 
-test('a group survives the app restarting', async (t) => {
-  const { start, file } = await setup(t)
+test('joining a group you are already in does not make a second copy', async (t) => {
+  const { pair } = await setup(t)
+  const { bob, code } = await pair()
+  await bob.joinGroup({ code })
+  await until(async () => {
+    const { groups } = await bob.snapshot()
+    return groups.length === 1 && !groups[0].joining
+  }, 'the duplicate to be dropped')
+})
+
+test('a revoked invite no longer lets anyone in', async (t) => {
+  const { start, view } = await setup(t)
   const alice = await start('alice')
-  await alice.createGroup({ name: 'Persistent' })
-  const { id } = await alice.shareItem({
-    type: 'photo', name: 'a.jpg', mime: 'image/jpeg', width: 10, height: 10,
-    files: { original: file('a.jpg', 70000), thumbnail: file('a-t.jpg', 3000) }
-  })
-  const before = await alice.snapshot()
+  const carol = await start('carol')
+
+  const { group: a } = await alice.createGroup({ name: 'Closed' })
+  const { code } = await alice.createInvite({ group: a, kind: 'open' })
+  const [invite] = (await view(alice, a)).invites
+  assert.equal(invite.code, code)
+  await alice.revokeInvite({ group: a, id: invite.id })
+  await until(async () => (await view(alice, a)).invites.length === 0, 'the revoke to apply')
+
+  const { group: c } = await carol.joinGroup({ code })
+  await new Promise((resolve) => setTimeout(resolve, 4000))
+  assert.equal((await view(carol, c)).joining, true)
+
+  // Giving up on a join removes it.
+  await carol.leaveGroup({ group: c })
+  assert.equal((await carol.snapshot()).groups.length, 0)
+})
+
+test('leaving removes your photos for the others and wipes the group from this device', async (t) => {
+  const { view, photo, pair, root } = await setup(t)
+  const { alice, bob, a, b } = await pair('Leaving')
+
+  await bob.shareItem({ group: b, ...photo('b.jpg', 50000) })
+  await until(async () => (await view(alice, a)).items.length === 1, 'bob\'s item to reach alice')
+
+  await bob.leaveGroup({ group: b })
+  assert.equal((await bob.snapshot()).groups.length, 0)
+  assert.deepEqual(fs.readdirSync(path.join(root, 'bob', 'groups')), [])
+  await until(async () => (await view(alice, a)).items.length === 0, 'bob\'s item to leave alice\'s gallery')
+  assert.equal((await view(alice, a)).members.length, 1)
+})
+
+test('groups, the profile and saved marks survive the app restarting', async (t) => {
+  const { start, view, photo, nodes } = await setup(t)
+  const alice = await start('alice')
+  await alice.setProfile({ name: 'Alice' })
+  const { group } = await alice.createGroup({ name: 'Persistent' })
+  const { id } = await alice.shareItem({ group, ...photo('a.jpg', 70000, 3000) })
+  await alice.markSaved({ group, ids: [id] })
+  const before = await view(alice, group)
+  assert.equal(before.me.name, 'Alice')
   await alice.close()
+  nodes.splice(nodes.indexOf(alice), 1)
 
   const again = await start('alice')
-  const after = await again.snapshot()
-  assert.equal(after.group.name, 'Persistent')
+  assert.equal((await again.snapshot()).profile.name, 'Alice')
+  const after = await view(again, group)
+  assert.equal(after.name, 'Persistent')
   assert.equal(after.me.key, before.me.key)
   assert.equal(after.items[0].id, id)
+  assert.equal(after.items[0].saved, true)
   assert.ok(after.items[0].files.thumbnail)
 })
 
 test('a member that was suspended reconnects quickly when it resumes', async (t) => {
-  const { start, file } = await setup(t)
-  const alice = await start('alice')
-  const bob = await start('bob')
-  await alice.createGroup({ name: 'Sleepy' })
-  const { code } = await alice.createInvite({ kind: 'open' })
-  await bob.joinGroup({ code })
-  await until(async () => (await bob.snapshot()).group?.writable === true, 'bob to become a writer')
+  const { view, photo, pair } = await setup(t)
+  const { alice, bob, a, b } = await pair('Sleepy')
 
   await bob.suspend()
-  await until(async () => (await alice.snapshot()).peers === 0, 'alice to notice bob has gone', 5000)
+  await until(async () => (await view(alice, a)).peers === 0, 'alice to notice bob has gone', 5000)
 
   // What alice shares while bob is away reaches him once he is back.
-  await alice.shareItem({
-    type: 'photo', name: 'a.jpg', mime: 'image/jpeg', width: 10, height: 10,
-    files: { original: file('a.jpg', 40000), thumbnail: file('a-t.jpg', 2000) }
-  })
+  await alice.shareItem({ group: a, ...photo('a.jpg', 40000, 2000) })
   await bob.resume()
-  await until(async () => (await bob.snapshot()).peers === 1, 'bob to reconnect', 8000)
-  await until(async () => !!(await bob.snapshot()).items[0]?.files.thumbnail, 'the photo to reach bob', 8000)
+  await until(async () => (await view(bob, b)).peers === 1, 'bob to reconnect', 8000)
+  await until(async () => !!(await view(bob, b)).items[0]?.files.thumbnail, 'the photo to reach bob', 8000)
 })

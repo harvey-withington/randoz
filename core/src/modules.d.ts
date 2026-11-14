@@ -2,6 +2,7 @@
 // uses so the rest of the code can be checked.
 declare module 'corestore'
 declare module 'hyperswarm'
+declare module 'hyperdht'
 declare module 'hyperblobs'
 declare module 'autobase'
 declare module 'hyperbee'

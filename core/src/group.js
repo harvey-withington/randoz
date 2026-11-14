@@ -5,7 +5,7 @@
 // the "view", a Hyperbee (sorted key/value store):
 //
 //   group              -> { name, createdAt, createdBy }
-//   member/<writer>    -> { addedBy, addedAt, left }
+//   member/<writer>    -> { addedBy, addedAt, left, name }
 //   item/<id>          -> the item entry, plus sharedBy
 //   invite/<id>        -> { kind, key, createdBy, createdAt, revoked }
 //
@@ -17,6 +17,9 @@ import Autobase from 'autobase'
 import Hyperbee from 'hyperbee'
 import { derive, hex, unhex } from './crypto.js'
 
+const MAX_NAME = 30
+const MAX_UNSHARE = 500
+
 /**
  * @typedef {{ blob: { byteOffset: number, blockOffset: number, blockLength: number, byteLength: number },
  *   size: number, sha256: string, nonce: string, wrappedKey: string }} Tier
@@ -24,7 +27,7 @@ import { derive, hex, unhex } from './crypto.js'
  *   width: number, height: number, createdAt: number, owner: string, epoch: number,
  *   tiers: { original: Tier, preview?: Tier, thumbnail?: Tier } }} ItemEntry
  * @typedef {ItemEntry & { sharedBy: string }} Item
- * @typedef {{ key: string, addedBy: string, addedAt: number, left: boolean }} Member
+ * @typedef {{ key: string, addedBy: string, addedAt: number, left: boolean, name?: string }} Member
  * @typedef {{ id: string, kind: 'open', key: string, createdBy: string, createdAt: number, revoked: boolean }} InviteRecord
  * @typedef {{ name: string, createdAt: number, createdBy: string }} GroupInfo
  */
@@ -78,8 +81,19 @@ async function apply(nodes, view, host, creator) {
       if (!isMember || !item || typeof item.id !== 'string' || (await view.get('item/' + item.id))) continue
       await view.put('item/' + item.id, { ...item, sharedBy: from })
     } else if (entry.type === 'unshare') {
-      const existing = await view.get('item/' + entry.id)
-      if (existing && existing.value.sharedBy === from) await view.del('item/' + entry.id)
+      // Only the member who shared an item can take it back.
+      const ids = Array.isArray(entry.ids) ? entry.ids.slice(0, MAX_UNSHARE) : []
+      for (const id of ids) {
+        const existing = await view.get('item/' + id)
+        if (existing && existing.value.sharedBy === from) await view.del('item/' + id)
+      }
+    } else if (entry.type === 'profile') {
+      // A member's chosen name for this group. Empty goes back to their nickname.
+      if (!isMember) continue
+      const current = (await view.get('member/' + from))?.value
+      if (!current) continue
+      const name = typeof entry.name === 'string' ? entry.name.trim().slice(0, MAX_NAME) : ''
+      await view.put('member/' + from, { ...current, name })
     } else if (entry.type === 'leave') {
       if (!isMember) continue
       // Leaving takes your items out of everyone's gallery.
