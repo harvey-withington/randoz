@@ -106,24 +106,44 @@ test('a newcomer joins by invite, and photos travel both ways', async (t) => {
   )
 })
 
-test('members see who is online, and each other\'s chosen names', async (t) => {
-  const { view, pair } = await setup(t)
+test('members see who is online, and the identity each chose for the group', async (t) => {
+  const { view, pair, file } = await setup(t)
   const { alice, bob, a, b } = await pair()
 
   await until(async () => (await view(alice, a)).members.every((/** @type {any} */ m) => m.online), 'alice to see bob online')
   await until(async () => (await view(bob, b)).members.every((/** @type {any} */ m) => m.online), 'bob to see alice online')
 
-  await bob.setProfile({ name: '  Bob the Builder  ' })
-  assert.equal((await bob.snapshot()).profile.name, 'Bob the Builder')
+  // Bob makes an identity with a picture and uses it here.
+  const picture = file('bob.jpg', 4000)
+  const { id: builder } = await bob.saveIdentity({ name: '  Bob the Builder  ', about: 'Can we fix it?', icon: picture })
+  assert.equal((await bob.snapshot()).identities[0].name, 'Bob the Builder')
+  assert.equal((await view(bob, b)).identity, null) // not used anywhere until chosen
+  await bob.setGroupIdentity({ group: b, identity: builder })
   await until(
     async () => (await view(alice, a)).members.some((/** @type {any} */ m) => m.name === 'Bob the Builder' && !m.me),
     'bob\'s name to reach alice'
   )
   const bobAsAlice = (await view(alice, a)).members.find((/** @type {any} */ m) => !m.me)
   assert.match(bobAsAlice.nickname, / /) // the nickname is still there underneath
+  assert.equal(bobAsAlice.about, 'Can we fix it?')
+  assert.deepEqual(fs.readFileSync(bobAsAlice.icon), fs.readFileSync(picture))
 
-  // An empty name goes back to the nickname.
-  await bob.setProfile({ name: '' })
+  // Editing the identity reaches the groups that use it.
+  await bob.saveIdentity({ id: builder, name: 'Bob', about: '', icon: null })
+  await until(async () => {
+    const seen = (await view(alice, a)).members.find((/** @type {any} */ m) => !m.me)
+    return seen.name === 'Bob' && seen.about === '' && seen.icon === null
+  }, 'the edited identity to reach alice')
+
+  // A second group can use another identity, or none.
+  const { group: other } = await bob.createGroup({ name: 'Elsewhere' })
+  assert.equal((await view(bob, other)).identity, null)
+  assert.match((await view(bob, other)).me.name, / /)
+  assert.equal((await view(bob, b)).me.name, 'Bob')
+
+  // Deleting it goes back to the nickname.
+  await bob.deleteIdentity({ id: builder })
+  assert.equal((await bob.snapshot()).identities.length, 0)
   await until(
     async () => (await view(alice, a)).members.find((/** @type {any} */ m) => !m.me).name === bobAsAlice.nickname,
     'bob\'s nickname to come back'
@@ -229,13 +249,13 @@ test('leaving removes your photos for the others and wipes the group from this d
   assert.equal((await view(alice, a)).members.length, 1)
 })
 
-test('groups, the profile, settings and saved marks survive the app restarting', async (t) => {
+test('groups, identities, settings and saved marks survive the app restarting', async (t) => {
   const { start, view, photo, nodes } = await setup(t)
   const alice = await start('alice')
-  await alice.setProfile({ name: 'Alice' })
+  const { id: identity } = await alice.saveIdentity({ name: 'Alice' })
   assert.equal((await alice.snapshot()).settings.shareReminder, true)
   await alice.setSettings({ shareReminder: false })
-  const { group } = await alice.createGroup({ name: 'Persistent' })
+  const { group } = await alice.createGroup({ name: 'Persistent', identity })
   const { id } = await alice.shareItem({ group, ...photo('a.jpg', 70000, 3000) })
   await alice.markSaved({ group, ids: [id] })
   const before = await view(alice, group)
@@ -244,7 +264,10 @@ test('groups, the profile, settings and saved marks survive the app restarting',
   nodes.splice(nodes.indexOf(alice), 1)
 
   const again = await start('alice')
-  assert.equal((await again.snapshot()).profile.name, 'Alice')
+  assert.equal((await again.snapshot()).identities[0].name, 'Alice')
+  assert.equal((await again.snapshot()).lastIdentity, identity)
+  assert.equal((await view(again, group)).identity, identity)
+  assert.equal((await view(again, group)).me.name, 'Alice')
   assert.equal((await again.snapshot()).settings.shareReminder, false)
   const after = await view(again, group)
   assert.equal(after.name, 'Persistent')
@@ -302,4 +325,21 @@ test('a member that vanishes without a word is noticed within half a minute', as
 
   bob.kill('SIGKILL')
   await until(async () => (await online()) === 1 && (await view(alice, a)).peers === 0, 'alice to notice', 30000)
+})
+
+test('the one name from before identities becomes an identity its groups keep', async (t) => {
+  const { start, view, nodes, root } = await setup(t)
+  const alice = await start('alice')
+  const { group } = await alice.createGroup({ name: 'Old times' })
+  await alice.close()
+  nodes.splice(nodes.indexOf(alice), 1)
+  // As an older version saved it.
+  fs.writeFileSync(path.join(root, 'alice', 'node.json'), JSON.stringify({ profile: { name: 'Alice' } }))
+
+  const again = await start('alice')
+  const state = await again.snapshot()
+  assert.equal(state.identities.length, 1)
+  assert.equal(state.identities[0].name, 'Alice')
+  assert.equal((await view(again, group)).identity, state.identities[0].id)
+  await until(async () => (await view(again, group)).me.name === 'Alice', 'the name to be told to the group')
 })

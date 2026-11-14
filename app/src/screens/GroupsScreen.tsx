@@ -18,12 +18,16 @@ interface Props {
   onProfile: () => void;
 }
 
-/** How a group's connection reads in one line. */
-export function connectionLabel(group: Group): string {
+/**
+ * How a group's connection reads in one line: first whether this phone is
+ * connected at all, then how many of the others are.
+ */
+export function connectionLabel(group: Group, connected: boolean): string {
+  if (!connected) return t('conn.notConnected');
   const others = group.members.filter((member) => !member.me);
   if (others.length === 0) return t('conn.alone');
-  const online = group.members.filter((member) => member.online).length;
-  return online > 1 ? t('conn.count', { online, total: group.members.length }) : t('conn.none');
+  const online = others.filter((member) => member.online).length;
+  return online > 0 ? t('conn.count', { online, total: others.length }) : t('conn.none');
 }
 
 /** Every group this phone is in or joining, and the way to start or join another. */
@@ -46,7 +50,7 @@ export function GroupsScreen({ state, onOpen, onStart, onJoin, onProfile }: Prop
           {t('groups.title')}
         </Txt>
         <IconButton
-          label={state.profile.name ? `${t('groups.profile')}: ${state.profile.name}` : t('groups.profile')}
+          label={t('groups.profile')}
           icon={UserRound}
           onPress={onProfile}
         />
@@ -57,7 +61,11 @@ export function GroupsScreen({ state, onOpen, onStart, onJoin, onProfile }: Prop
         keyExtractor={(group) => group.id}
         contentContainerStyle={{ padding: theme.space[3], gap: theme.space[2] }}
         renderItem={({ item }) =>
-          item.joining ? <JoiningRow group={item} /> : <GroupRow group={item} onPress={() => onOpen(item.id)} />
+          item.joining ? (
+            <JoiningRow group={item} />
+          ) : (
+            <GroupRow group={item} connected={state.online} onPress={() => onOpen(item.id)} />
+          )
         }
       />
 
@@ -82,10 +90,12 @@ export function GroupsScreen({ state, onOpen, onStart, onJoin, onProfile }: Prop
 
 interface RowProps {
   group: Group;
+  /** Whether this phone is connected to the network. */
+  connected: boolean;
   onPress: () => void;
 }
 
-function GroupRow({ group, onPress }: RowProps) {
+function GroupRow({ group, connected, onPress }: RowProps) {
   const theme = useTheme();
   const c = theme.color;
   const latest = [...group.items].reverse().find((item) => item.files.thumbnail);
@@ -95,11 +105,11 @@ function GroupRow({ group, onPress }: RowProps) {
     'groups.photos',
     'groups.photosNone',
   )}`;
-  const online = group.members.some((member) => member.online && !member.me);
+  const label = connectionLabel(group, connected);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${group.name}. ${counts}. ${connectionLabel(group)}`}
+      accessibilityLabel={`${group.name}. ${counts}. ${label}`}
       onPress={onPress}
       style={({ pressed }) => ({
         flexDirection: 'row',
@@ -136,7 +146,7 @@ function GroupRow({ group, onPress }: RowProps) {
         <Txt variant="muted" numberOfLines={1}>
           {counts}
         </Txt>
-        <ConnectionDot online={online} label={connectionLabel(group)} />
+        <ConnectionDot online={connected} label={label} />
       </View>
       <ChevronRight size={20} color={c.textFaint} />
     </Pressable>

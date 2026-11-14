@@ -1,9 +1,10 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
 import { ClipboardPaste } from 'lucide-react-native';
 import { Button } from '../components/Button';
+import { IdentityPicker } from '../components/IdentityPicker';
 import { Sheet } from '../components/Sheet';
 import { Txt } from '../components/Txt';
 import { t } from '../i18n';
@@ -13,6 +14,8 @@ import { useTheme } from '../theme/theme';
 
 interface Props {
   onClose: () => void;
+  /** Opens the identities sheet, to make a new one. */
+  onManage: () => void;
 }
 
 const INVITE_PREFIX = 'randoz://join/';
@@ -21,12 +24,13 @@ const INVITE_PREFIX = 'randoz://join/';
  * Scan an invite's QR code, or paste its link. Joining then carries on in
  * the group list, where it shows as "Joining…".
  */
-export function JoinSheet({ onClose }: Props) {
+export function JoinSheet({ onClose, onManage }: Props) {
   const theme = useTheme();
   const node = useNode();
   const shell = useShell();
   const [permission, requestPermission] = useCameraPermissions();
   const handled = useRef(false);
+  const [identity, setIdentity] = useState<string | null>(node.state?.lastIdentity ?? null);
 
   const join = async (code: string) => {
     if (handled.current) return;
@@ -36,7 +40,7 @@ export function JoinSheet({ onClose }: Props) {
     }
     handled.current = true;
     try {
-      await node.call('joinGroup', { code: code.trim() });
+      await node.call('joinGroup', { code: code.trim(), identity });
       onClose();
     } catch (err) {
       handled.current = false;
@@ -85,6 +89,14 @@ export function JoinSheet({ onClose }: Props) {
           <Button label={t('join.allowCamera')} kind="primary" onPress={() => requestPermission()} />
         </View>
       )}
+      <View style={{ marginTop: theme.space[4] }}>
+        <IdentityPicker
+          identities={node.state?.identities ?? []}
+          value={identity}
+          onChange={setIdentity}
+          onManage={onManage}
+        />
+      </View>
     </Sheet>
   );
 }

@@ -40,8 +40,11 @@ group's data itself: it sees the core's state and calls its methods through
 - **A long press starts a selection** in a list of things that can be acted
   on together. While selecting, a tap toggles; the header becomes the
   selection's own bar (cancel, the count, the actions).
-- **Connection is always said in words.** A dot comes with "2 of 3 online",
-  "online" or "not connected". The one exception is the dot on an `Avatar`,
+- **Connection is always said in words, and yours comes first.** A group's
+  line says whether this phone is connected, then how many of the others
+  are: "Connected · 1 of 2 others online", "Connected · no one else online",
+  "Not connected". Its dot is green whenever this phone is connected, however
+  many others are. A member's line says "online" or "not connected". The one exception is the dot on an `Avatar`,
   which is a reminder of what Who's here and the photo viewer say in words.
 - **Never wait without a reason.** Anything that needs another phone (a
   photo to arrive, a save) says who it is waiting for, and an action that
@@ -91,8 +94,9 @@ group's data itself: it sees the core's state and calls its methods through
 | `Button` | `label`, `onPress`, `kind?` (`primary`, `default`, `ghost`, `danger`), `icon?`, `disabled?`, `busy?`, `wide?` | UNCLI's `.btn`. `busy` shows a spinner and blocks presses |
 | `IconButton` | `label`, `icon`, `onPress`, `color?`, `disabled?`, `badge?` | Icon only, 44 px; `label` is read out |
 | `Sheet` | `title`, `onClose`, `children`, `footer?` | UNCLI's `Modal` as it is on a phone: a sheet along the bottom, at most 90 % of the screen, its content scrolling, its footer's buttons wrapping. Back, the scrim and the close button close it |
-| `Avatar` | `person`, `size?`, `onPhoto?` | A member's initials on their colour. Not read out: the name is always beside it. `onPhoto` gives it an opaque ground. When `person.online` is known, a dot on the corner: filled green connected, hollow grey not |
+| `Avatar` | `person`, `size?`, `onPhoto?` | A member's picture, or their initials on their colour. Not read out: the name is always beside it. `onPhoto` gives it an opaque ground. When `person.online` is known, a dot on the corner: filled green connected, hollow grey not |
 | `Field` | `label`, `value`, `onChange`, `placeholder?`, `hint?`, `maxLength?`, `autoFocus?`, `onSubmit?` | A labelled one-line text field with a hint under it. UNCLI's `.input` |
+| `IdentityPicker` | `identities`, `value`, `onChange`, `onManage?` | "Appear as": Random, then each identity, as radio rows. `value` is an identity's id or `null` for random. `onManage` adds **New identity…** |
 | `ConnectionDot` | `online`, `label` | A dot (filled green on, hollow grey off) and what it means in words |
 | `ShellProvider` | `children` | Mounted once in `App`. Gives `useShell()`: `toast(message, kind?)` and `confirm({ title, message, confirmLabel, danger?, optOut?, onOptOut? })`, which resolves `true` or `false`; `optOut` adds a tick box with that label, and `onOptOut` runs if it is ticked and the action confirmed. Toasts sit at the top; errors stay until tapped, others fade after 3.5 s. Confirm is a `Sheet` with Cancel and the action |
 
@@ -105,12 +109,12 @@ layer in the app, not a `Modal`.
 | Screen | Shows |
 |---|---|
 | `HomeScreen` | In no group yet: what RANDOZ is, **Start a group**, **Join a group**, and the privacy promise |
-| `GroupsScreen` | "Your groups" and the **Your name** button. A row per group, newest first: its latest photo, name, "3 people · 12 photos", and its connection line; tapping opens it. A group still being joined is a row saying "Joining…" with what it is waiting for and **Stop trying**; a refused invite says so, with **Remove**. **Start a group** and **Join a group** stay at the bottom |
-| `StartSheet` | The new group's name, then **Start group**, which opens it |
-| `JoinSheet` | The camera scanning for an invite's QR code, or **Paste an invite link**. Without camera permission it explains and offers to ask. Joining carries on in the group list |
-| `ProfileSheet` | The one name other members see, in every group. Empty keeps the random nickname each group gives. Under it, **Ask before sharing again** (once the reminder has been turned off) and **Copy connection log**: what the core has said lately, for working out why something is not arriving |
+| `GroupsScreen` | "Your groups" and the **Your identities** button. A row per group, newest first: its latest photo, name, "3 people · 12 photos", and its connection line; tapping opens it. A group still being joined is a row saying "Joining…" with what it is waiting for and **Stop trying**; a refused invite says so, with **Remove**. **Start a group** and **Join a group** stay at the bottom |
+| `StartSheet` | The new group's name, how to appear in it (`IdentityPicker`, starting on the identity used last), then **Start group**, which opens it |
+| `JoinSheet` | The camera scanning for an invite's QR code, or **Paste an invite link**. Without camera permission it explains and offers to ask. Under it, how to appear in the group (`IdentityPicker`). Joining carries on in the group list |
+| `IdentitiesSheet` | This phone's identities: each one's picture, name, line and how many groups use it; tapping one edits it (name, about, picture, **Delete**, which asks first); **New identity**. Under them, **Ask before sharing again** (once the reminder has been turned off) and **Copy connection log** |
 | `GroupScreen` | Header: back to the list, the group's name, "You are <name>", the connection line, Invite, and Who's here. A three-column grid of `PhotoTile`s, newest first. **Share photos** floats at the bottom: pick, confirm (with **Don't show this again**), then "Sharing 2 of 5…". A long press selects: the header becomes Cancel, "3 selected", Save and Unshare (only when every selected photo is yours; it asks first) |
 | `PhotoTile` | A thumbnail, or "Arriving…" until it comes. Bottom left: who shared it. Bottom right: a download mark once saved to this phone. Top right, while selecting: a tick |
 | `InviteSheet` | The kinds of invite (shareable, selected; in person, described and not yet available), the invite as a QR code, **Send link**, **Copy link**, and **Turn this invite off** for the member who made it (asks first) |
-| `MembersSheet` | Each member's avatar, name (with their nickname beside a chosen one), photo count and whether they are online, and **Leave group** (asks first) |
+| `MembersSheet` | Each member's avatar, name (with their nickname beside a chosen one), the line about them, photo count and whether they are online. Beside yourself, **Change** opens the `IdentityPicker` for this group. **Leave group** (asks first) |
 | `Viewer` | One photo full screen: the thumbnail at once, the preview when it arrives, who shared it and whether they are connected, **Save to camera roll** (**Save again** once saved), and **Unshare** on your own (asks first). With nobody connected and the full-size photo not on this phone, Save is disabled and says why; while saving waits on someone, the button says who |

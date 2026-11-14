@@ -10,7 +10,7 @@ import { GroupScreen } from './src/screens/GroupScreen';
 import { GroupsScreen } from './src/screens/GroupsScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { JoinSheet } from './src/screens/JoinSheet';
-import { ProfileSheet } from './src/screens/ProfileSheet';
+import { IdentitiesSheet } from './src/screens/IdentitiesSheet';
 import { StartSheet } from './src/screens/StartSheet';
 import { ShellProvider } from './src/shell/shell';
 import { NodeProvider, useNode } from './src/store/node';
@@ -110,14 +110,15 @@ function Root() {
       {sheet === 'start' ? (
         <StartSheet
           onClose={() => setSheet(null)}
+          onManage={() => setSheet('profile')}
           onStarted={(group) => {
             setSheet(null);
             setOpenGroup(group);
           }}
         />
       ) : null}
-      {sheet === 'join' ? <JoinSheet onClose={() => setSheet(null)} /> : null}
-      {sheet === 'profile' ? <ProfileSheet onClose={() => setSheet(null)} /> : null}
+      {sheet === 'join' ? <JoinSheet onClose={() => setSheet(null)} onManage={() => setSheet('profile')} /> : null}
+      {sheet === 'profile' ? <IdentitiesSheet onClose={() => setSheet(null)} /> : null}
     </View>
   );
 }

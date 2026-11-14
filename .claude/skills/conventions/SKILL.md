@@ -31,7 +31,9 @@ The rules a change must not break. The reasons are in `docs/decisions/`.
 - **Each group is a session with its own folder, storage and key pair**
   (`core/src/session.js`). Nothing a device does in one group may be
   linkable to what it does in another, and leaving a group deletes one
-  folder. Sessions share only the node's DHT.
+  folder. Sessions share only the node's DHT. The one exception is the
+  user's to make: an identity (name, picture, a line about them) lives on
+  the device, and a group is told a copy only when the user picks it there.
 - **One core at a time.** The worklet closes the core when it stops, and
   the screen stops the worklet when it goes away; a second core on the same
   storage cannot open it.

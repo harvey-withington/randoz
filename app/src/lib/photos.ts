@@ -19,6 +19,7 @@ export interface PickedPhoto {
 const MAX_AT_ONCE = 30;
 const PREVIEW_SIDE = 1600;
 const THUMBNAIL_SIDE = 400;
+const ICON_SIDE = 192;
 
 /** Opens the phone's photo picker. Returns an empty list if nothing was chosen. */
 export async function pickPhotos(): Promise<PickedPhoto[]> {
@@ -36,6 +37,35 @@ export async function pickPhotos(): Promise<PickedPhoto[]> {
     height: asset.height,
     name: asset.fileName ?? `photo-${index + 1}.jpg`,
   }));
+}
+
+/**
+ * Picks a picture for an identity and makes it a small square JPEG, stripped
+ * of metadata. Returns its path, or null if nothing was chosen.
+ */
+export async function pickIcon(): Promise<string | null> {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 1,
+    exif: false,
+  });
+  if (result.canceled) return null;
+  const asset = result.assets[0];
+  // The phone's own cropper is not on every device: take the middle square.
+  const side = Math.min(asset.width, asset.height);
+  const context = ImageManipulator.manipulate(asset.uri);
+  context.crop({
+    originX: Math.floor((asset.width - side) / 2),
+    originY: Math.floor((asset.height - side) / 2),
+    width: side,
+    height: side,
+  });
+  context.resize({ width: ICON_SIDE });
+  const rendered = await context.renderAsync();
+  const saved = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: 0.7 });
+  return toPath(saved.uri);
 }
 
 /** Re-encodes a photo as JPEG, no wider or taller than `side` if given. */

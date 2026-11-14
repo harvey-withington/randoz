@@ -5,7 +5,7 @@
 // the "view", a Hyperbee (sorted key/value store):
 //
 //   group              -> { name, createdAt, createdBy }
-//   member/<writer>    -> { addedBy, addedAt, left, name }
+//   member/<writer>    -> { addedBy, addedAt, left, name, about, icon }
 //   item/<id>          -> the item entry, plus sharedBy
 //   invite/<id>        -> { kind, key, createdBy, createdAt, revoked }
 //
@@ -17,7 +17,10 @@ import Autobase from 'autobase'
 import Hyperbee from 'hyperbee'
 import { derive, hex, unhex } from './crypto.js'
 
-const MAX_NAME = 30
+export const MAX_NAME = 30
+export const MAX_ABOUT = 80
+/** A member's picture travels in the log as base64 text: about 30 KB of JPEG. */
+export const MAX_ICON = 40000
 const MAX_UNSHARE = 500
 
 /**
@@ -27,7 +30,8 @@ const MAX_UNSHARE = 500
  *   width: number, height: number, createdAt: number, owner: string, epoch: number,
  *   tiers: { original: Tier, preview?: Tier, thumbnail?: Tier } }} ItemEntry
  * @typedef {ItemEntry & { sharedBy: string }} Item
- * @typedef {{ key: string, addedBy: string, addedAt: number, left: boolean, name?: string }} Member
+ * @typedef {{ key: string, addedBy: string, addedAt: number, left: boolean, name?: string,
+ *   about?: string, icon?: string }} Member
  * @typedef {{ id: string, kind: 'open', key: string, createdBy: string, createdAt: number, revoked: boolean }} InviteRecord
  * @typedef {{ name: string, createdAt: number, createdBy: string }} GroupInfo
  */
@@ -88,12 +92,15 @@ async function apply(nodes, view, host, creator) {
         if (existing && existing.value.sharedBy === from) await view.del('item/' + id)
       }
     } else if (entry.type === 'profile') {
-      // A member's chosen name for this group. Empty goes back to their nickname.
+      // How a member appears in this group: a name, a line about them and a
+      // small picture. All empty goes back to their nickname and initials.
       if (!isMember) continue
       const current = (await view.get('member/' + from))?.value
       if (!current) continue
       const name = typeof entry.name === 'string' ? entry.name.trim().slice(0, MAX_NAME) : ''
-      await view.put('member/' + from, { ...current, name })
+      const about = typeof entry.about === 'string' ? entry.about.trim().slice(0, MAX_ABOUT) : ''
+      const icon = typeof entry.icon === 'string' && entry.icon.length <= MAX_ICON ? entry.icon : ''
+      await view.put('member/' + from, { ...current, name, about, icon })
     } else if (entry.type === 'leave') {
       if (!isMember) continue
       // Leaving takes your items out of everyone's gallery.

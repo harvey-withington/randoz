@@ -1,5 +1,6 @@
-import { View } from 'react-native';
+import { Image, View } from 'react-native';
 import type { Person } from '../lib/types';
+import { toUri } from '../store/node';
 import { useTheme } from '../theme/theme';
 import { Txt } from './Txt';
 
@@ -11,7 +12,7 @@ interface Props {
 }
 
 /**
- * A member's mark: their initials on their own colour. Colour is never the
+ * A member's mark: their picture, or their initials on their own colour. Colour is never the
  * only signal, so the name is always shown beside it or read out with it.
  *
  * Where it is known whether they are connected, a dot sits on the corner:
@@ -39,9 +40,16 @@ export function Avatar({ person, size = 32, onPhoto }: Props) {
           justifyContent: 'center',
         }}
       >
-        <Txt color={theme.tint(person.hue)} style={{ fontFamily: theme.font.semibold, fontSize: size * 0.38 }}>
-          {initials}
-        </Txt>
+        {person.icon ? (
+          <Image
+            source={{ uri: toUri(person.icon) }}
+            style={{ width: size - 3, height: size - 3, borderRadius: size / 2 }}
+          />
+        ) : (
+          <Txt color={theme.tint(person.hue)} style={{ fontFamily: theme.font.semibold, fontSize: size * 0.38 }}>
+            {initials}
+          </Txt>
+        )}
       </View>
       {person.online === undefined ? null : (
         <View

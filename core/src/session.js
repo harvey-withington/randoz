@@ -9,7 +9,8 @@ import Corestore from 'corestore'
 import Hyperswarm from 'hyperswarm'
 import Protomux from 'protomux'
 import c from 'compact-encoding'
-import { derive, equal, hex, randomBytes, unhex } from './crypto.js'
+import b4a from 'b4a'
+import { derive, equal, hex, randomBytes, sha256, unhex } from './crypto.js'
 import { getGroupInfo, getItem, listInvites, listItems, listMembers, openGroup } from './group.js'
 import { checkInviteProof, createInvite, decodeInvite, encodeInvite, inviteId, inviteProof, inviteTopic } from './invite.js'
 import { fetchTier, itemId, storeTier } from './items.js'
@@ -19,7 +20,9 @@ import { capPacketSize } from './transport.js'
 /**
  * @typedef {'thumbnail' | 'preview' | 'original'} TierName
  * @typedef {{ id: string, dir: string, fs: any, path: any, dht: any,
- *   log: (text: string) => void, onChange: () => void, profileName: () => string }} SessionOptions
+ *   log: (text: string) => void, onChange: () => void, isOnline: () => boolean,
+ *   identityFor: (id: string | null) => Appearance }} SessionOptions
+ * @typedef {{ name: string, about: string, icon: string }} Appearance how a member appears: icon is base64 JPEG, or empty
  */
 
 const TIERS = /** @type {TierName[]} */ (['thumbnail', 'preview', 'original'])
@@ -29,7 +32,6 @@ const ANNOUNCE_WAIT_MS = 15000
 const LONELY_CHECK_MS = 15000
 const MISSING_CHECK_EVERY = 4 // in lonely checks: once a minute
 const QUIET_MS = 15000
-export const MAX_NAME = 30
 
 /**
  * Hyperswarm destroys, suspends and resumes the DHT it is given. Sessions
@@ -49,7 +51,7 @@ function sharedDht(dht) {
 }
 
 /** @param {SessionOptions} options */
-export async function createSession({ id, dir, fs, path, dht, log, onChange, profileName }) {
+export async function createSession({ id, dir, fs, path, dht, log, onChange, isOnline, identityFor }) {
   const savedFile = path.join(dir, 'session.json')
   const cacheDir = path.join(dir, 'cache')
 
@@ -60,6 +62,10 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
   /** @type {import('./invite.js').Invite | null} */ let pendingInvite = null
   let joinError = ''
   let joinedAt = 0
+  /** @type {string | null} which of this device's identities is used here; null is the random one */
+  let identityId = null
+  /** @type {Map<string, string>} a member's picture (base64) -> its file in the cache */
+  const iconFiles = new Map()
   /** @type {Map<string, any>} topic (hex) -> discovery session */
   const topics = new Map()
   /** @type {Set<string>} cache file names on disk */
@@ -95,6 +101,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
       logKey: base ? hex(base.key) : undefined,
       invite: pendingInvite ? encodeInvite(pendingInvite) : undefined,
       joinedAt,
+      identity: identityId,
       saved: [...savedItems]
     }))
   }
@@ -119,6 +126,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
     const saved = readSaved()
     savedItems = new Set(saved.saved || [])
     joinedAt = saved.joinedAt || Date.now()
+    identityId = saved.identity || null
     if (saved.logKey && saved.secret) await enterGroup(unhex(saved.logKey), unhex(saved.secret))
     else if (saved.invite) pendingInvite = decodeInvite(saved.invite)
     await syncTopics()
@@ -347,23 +355,42 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
     }
   }
 
-  // Tells the group our chosen name whenever it differs from what the log has.
-  async function syncName() {
+  // Tells the group how we appear here whenever that differs from what the log has.
+  async function syncProfile() {
     if (!base || !base.writable || namePending) return
     const mine = (await base.view.get('member/' + hex(base.local.key)))?.value
-    if (!mine || (mine.name || '') === profileName()) return
+    const want = identityFor(identityId)
+    if (!mine) return
+    if ((mine.name || '') === want.name && (mine.about || '') === want.about && (mine.icon || '') === want.icon) return
     namePending = true
     try {
-      await base.append({ type: 'profile', name: profileName() })
+      await base.append({ type: 'profile', name: want.name, about: want.about, icon: want.icon })
     } finally {
       namePending = false
     }
   }
 
+  /**
+   * A member's picture as a file the screen can show, written on first sight.
+   * @param {string} memberKey @param {string | undefined} icon base64 JPEG
+   */
+  function iconPath(memberKey, icon) {
+    if (!icon) return null
+    const known = iconFiles.get(icon)
+    if (known) return known
+    const name = 'icon-' + memberKey.slice(0, 16) + '-' + sha256(b4a.from(icon)).slice(0, 12) + '.jpg'
+    if (!cached.has(name)) {
+      fs.writeFileSync(cachePath(name), b4a.from(icon, 'base64'))
+      cached.add(name)
+    }
+    iconFiles.set(icon, cachePath(name))
+    return cachePath(name)
+  }
+
   function onUpdate() {
     log(`group log updated (${base.view.version} entries in view)`)
     syncTopics().catch((err) => log('topics failed: ' + err.message))
-    syncName().catch((err) => log('name failed: ' + err.message))
+    syncProfile().catch((err) => log('profile failed: ' + err.message))
     onChange()
   }
 
@@ -372,7 +399,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
   async function snapshot() {
     const peers = swarm ? swarm.connections.size : 0
     if (!base) {
-      return { id, joining: true, joinError, peers, joinedAt, name: '', writable: false }
+      return { id, joining: true, joinError, peers, joinedAt, identity: identityId, name: '', writable: false }
     }
     const info = await getGroupInfo(base)
     const myKey = hex(base.local.key)
@@ -381,7 +408,8 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
       const nick = nicknameFor(m.key)
       return {
         key: m.key, name: m.name || nick.name, nickname: nick.name, hue: nick.hue,
-        me: m.key === myKey, online: m.key === myKey || here.has(m.key)
+        about: m.about || '', icon: iconPath(m.key, m.icon),
+        me: m.key === myKey, online: m.key === myKey ? isOnline() : here.has(m.key)
       }
     })
     const byKey = new Map(members.map((m) => [m.key, m]))
@@ -397,8 +425,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
         id: item.id, type: item.type, name: item.name, mime: item.mime,
         width: item.width, height: item.height, createdAt: item.createdAt,
         size: item.tiers.original.size, sharedBy: item.sharedBy,
-        // On your own photos the dot says whether you are connected to anyone.
-        by: by ? { name: by.name, hue: by.hue, online: by.me ? here.size > 0 : by.online } : null,
+        by: by ? { name: by.name, hue: by.hue, icon: by.icon, online: by.online } : null,
         mine: item.sharedBy === myKey, saved: savedItems.has(item.id), files
       }
     })
@@ -409,8 +436,10 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
     fetchThumbnails().catch(() => {})
     return {
       id, key: hex(base.key), name: info ? info.name : '', createdAt: info ? info.createdAt : 0,
-      joinedAt, writable: base.writable, joining: false, joinError: '', peers,
-      me: byKey.get(myKey) || { key: myKey, ...nicknameFor(myKey), nickname: nicknameFor(myKey).name, me: true, online: true },
+      joinedAt, identity: identityId, writable: base.writable, joining: false, joinError: '', peers,
+      me: byKey.get(myKey) || {
+        key: myKey, ...nicknameFor(myKey), nickname: nicknameFor(myKey).name, about: '', icon: null, me: true, online: isOnline()
+      },
       members, items, invites
     }
   }
@@ -436,7 +465,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
     async create(name) {
       await enterGroup(null, randomBytes(32))
       await base.append({ type: 'group', name, at: Date.now() })
-      await syncName()
+      await syncProfile()
     },
 
     /** @param {import('./invite.js').Invite} invite */
@@ -508,8 +537,19 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, pro
       onChange()
     },
 
-    /** Called when the profile name changes. */
-    nameChanged: () => syncName(),
+    /** Which of this device's identities is used here; null is the random one. */
+    identity: () => identityId,
+
+    /** Appear in this group as another identity, or as the random one (null). @param {string | null} next */
+    async setIdentity(next) {
+      identityId = next
+      writeSaved()
+      await syncProfile()
+      onChange()
+    },
+
+    /** Called when the identity used here has been edited. */
+    identityChanged: () => syncProfile(),
 
     /** Leaves the group (or stops joining) and deletes its folder. */
     async leave() {

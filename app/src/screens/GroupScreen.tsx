@@ -49,6 +49,8 @@ export function GroupScreen({ group, onBack }: Props) {
   // Photos unshared by someone else drop out of the selection.
   const chosen = group.items.filter((item) => selected.has(item.id));
   const selecting = selected.size > 0;
+  // Connected to the network at all, and to anyone in this group.
+  const connected = node.state?.online ?? false;
   const online = group.members.some((member) => member.online && !member.me);
 
   // Back closes the top layer: the selection first, then the group.
@@ -178,7 +180,7 @@ export function GroupScreen({ group, onBack }: Props) {
               <Txt variant="muted" numberOfLines={1}>
                 {group.writable ? t('group.you', { name: group.me.name }) : t('group.joiningAs')}
               </Txt>
-              <ConnectionDot online={online} label={connectionLabel(group)} />
+              <ConnectionDot online={connected} label={connectionLabel(group, connected)} />
             </View>
             <IconButton label={t('group.invite')} icon={UserPlus} onPress={() => setInviting(true)} />
             <IconButton

@@ -4,6 +4,7 @@ import { LogOut } from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
 import { ConnectionDot } from '../components/ConnectionDot';
 import { Button } from '../components/Button';
+import { IdentityPicker } from '../components/IdentityPicker';
 import { Sheet } from '../components/Sheet';
 import { Txt } from '../components/Txt';
 import { plural, t } from '../i18n';
@@ -17,12 +18,23 @@ interface Props {
   onClose: () => void;
 }
 
-/** Who is in the group, who is online, how much each has shared, and the way out. */
+/**
+ * Who is in the group, who is online, how much each has shared, how you
+ * appear in it, and the way out.
+ */
 export function MembersSheet({ group, onClose }: Props) {
   const theme = useTheme();
   const node = useNode();
   const shell = useShell();
   const [leaving, setLeaving] = useState(false);
+  const [choosing, setChoosing] = useState(false);
+
+  const appearAs = (identity: string | null) => {
+    node.call('setGroupIdentity', { group: group.id, identity }).then(
+      () => setChoosing(false),
+      (err: Error) => shell.toast(t('identity.failed', { reason: err.message }), 'error'),
+    );
+  };
 
   const leave = async () => {
     const ok = await shell.confirm({
@@ -63,6 +75,7 @@ export function MembersSheet({ group, onClose }: Props) {
                   {member.name}
                   {member.me ? ` (${t('members.you')})` : ''}
                 </Txt>
+                {member.about ? <Txt variant="muted">{member.about}</Txt> : null}
                 <Txt variant="muted" numberOfLines={1}>
                   {plural(count, 'members.photosOne', 'members.photos', 'members.photosNone')}
                   {aka}
@@ -71,10 +84,22 @@ export function MembersSheet({ group, onClose }: Props) {
                   <ConnectionDot online={member.online} label={t(member.online ? 'conn.online' : 'conn.offline')} />
                 )}
               </View>
+              {member.me ? (
+                <Button
+                  label={t(choosing ? 'common.close' : 'members.change')}
+                  kind="ghost"
+                  onPress={() => setChoosing(!choosing)}
+                />
+              ) : null}
             </View>
           );
         })}
       </View>
+      {choosing ? (
+        <View style={{ marginTop: theme.space[4] }}>
+          <IdentityPicker identities={node.state?.identities ?? []} value={group.identity} onChange={appearAs} />
+        </View>
+      ) : null}
     </Sheet>
   );
 }

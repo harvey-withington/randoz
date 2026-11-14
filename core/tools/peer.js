@@ -81,15 +81,21 @@ async function onState(state) {
   }
 }
 
-if (opts.as !== undefined) await node.setProfile({ name: opts.as })
+// --as "Harv" appears under that name in a group made or joined in this run.
+/** @type {string | null} */
+let identity = null
+if (opts.as) {
+  const known = (await node.snapshot()).identities.find((/** @type {any} */ one) => one.name === opts.as)
+  identity = known ? known.id : (await node.saveIdentity({ name: opts.as })).id
+}
 const first = await node.snapshot()
 if (opts.create && first.groups.length === 0) {
-  const { group } = await node.createGroup({ name: opts.create })
+  const { group } = await node.createGroup({ name: opts.create, identity })
   say('making an invite…')
   const { code } = await node.createInvite({ group, kind: 'open' })
   say('invite: ' + code)
 } else if (opts.join && first.groups.length === 0) {
-  await node.joinGroup({ code: opts.join })
+  await node.joinGroup({ code: opts.join, identity })
 } else {
   for (const group of first.groups) {
     for (const invite of group.invites || []) say(`invite for "${group.name}": ${invite.code}`)
