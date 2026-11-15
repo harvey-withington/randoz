@@ -128,3 +128,19 @@ two builds of the same commit share a number.
   it.
 
 Emulator and debug builds keep fixed names and are not numbered.
+
+## The icon
+
+The icon is drawn by `scripts/make-icons.mjs` (`npm run icons`): a camera
+iris with a hot-air balloon in its opening. The script writes the drawings to
+`app/assets/icon/` as SVG and renders the PNGs `app.json` points to with
+headless Edge. Change the icon there and run it again; do not edit the PNGs.
+
+- `randoz-icon.svg` is the iris as first drawn, with a small opening.
+- `randoz-icon-bold.svg` has a wider opening and a larger balloon, which
+  reads better small. It is the app's icon.
+- `randoz-icon-mono.svg` is one colour, for Android's themed icons.
+
+On Android the icon sits on a cream ground (`adaptiveIcon.backgroundColor`),
+because a launcher cuts every icon to its own shape and needs something
+behind the drawing.

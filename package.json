@@ -20,6 +20,7 @@
     "build:emulator": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1 -Emulator",
     "check": "npm --prefix core run check && npm --prefix app run check",
     "test": "npm --prefix core test && npm --prefix app test",
-    "serve-apk": "node scripts/serve-apk.mjs"
+    "serve-apk": "node scripts/serve-apk.mjs",
+    "icons": "node scripts/make-icons.mjs"
   }
 }

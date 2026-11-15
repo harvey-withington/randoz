@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>RANDOZ</title>
+  <g transform="translate(512 512)">
+    <circle r="480" fill="#FDF4DC"/>
+    <g transform="scale(-1 1)">
+    <path d="M169.74,98 L169.74,448.99 A480 480 0 0 1 -303.96,371.49 Z" fill="#D93A49"/>
+    <path d="M0,196 L-303.96,371.49 A480 480 0 0 1 -473.7,-77.49 Z" fill="#EB7A05"/>
+    <path d="M-169.74,98 L-473.7,-77.49 A480 480 0 0 1 -169.74,-448.99 Z" fill="#F0B74A"/>
+    <path d="M-169.74,-98 L-169.74,-448.99 A480 480 0 0 1 303.96,-371.49 Z" fill="#D93A49"/>
+    <path d="M0,-196 L303.96,-371.49 A480 480 0 0 1 473.7,77.49 Z" fill="#EB7A05"/>
+    <path d="M169.74,-98 L473.7,77.49 A480 480 0 0 1 169.74,448.99 Z" fill="#F0B74A"/>
+    <path d="M169.74,-98 L169.74,448.99" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
+    <path d="M169.74,98 L-303.96,371.49" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
+    <path d="M0,196 L-473.7,-77.49" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
+    <path d="M-169.74,98 L-169.74,-448.99" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
+    <path d="M-169.74,-98 L303.96,-371.49" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
+    <path d="M0,-196 L473.7,77.49" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
+    </g>
+    <circle r="480" fill="none" stroke="#FDF4DC" stroke-width="21.6"/>
+    <circle r="245" fill="#14213D" stroke="#FDF4DC" stroke-width="10.56"/>
+    <g transform="scale(3.05) translate(0 -11)">
+    <path d="M0 -62 C38 -62 54 -32 54 -8 C54 22 24 46 13 60 L-13 60 C-24 46 -54 22 -54 -8 C-54 -32 -38 -62 0 -62 Z" fill="#FDF4DC"/>
+    <path d="M0 -62 C15 -62 21 -27 21 -6 C21 24 10 48 6 60 L-6 60 C-10 48 -21 24 -21 -6 C-21 -27 -15 -62 0 -62 Z" fill="#BFD9F5"/>
+    <path d="M-11 60 L-8 70 M11 60 L8 70" stroke="#FDF4DC" stroke-width="3" stroke-linecap="round" fill="none"/>
+    <rect x="-10" y="70" width="20" height="13" rx="3" fill="#F0B74A"/>
+  </g>
+  </g>
+</svg>
