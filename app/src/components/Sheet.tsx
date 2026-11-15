@@ -54,6 +54,10 @@ export function Sheet({ title, onClose, children, footer }: Props) {
             borderWidth: 1,
             borderBottomWidth: 0,
             maxHeight: '90%',
+            // On a wide screen a sheet is a column in the middle, not a band across it.
+            width: '100%',
+            maxWidth: 640,
+            alignSelf: 'center',
             // The keyboard's reported height stops short of the navigation bar.
             paddingBottom: insets.bottom + keyboard + theme.space[4],
           }}

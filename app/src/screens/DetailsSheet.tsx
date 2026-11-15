@@ -132,7 +132,7 @@ export function DetailsSheet({ group, item, onClose }: Props) {
                 onSubmit={add}
               />
             </View>
-            <Button label={t('tags.add')} icon={Plus} disabled={!typed.trim()} onPress={add} />
+            <Button label={t('tags.add')} icon={Plus} disabled={!typed.trim()} onPress={add} style={{ alignSelf: 'flex-end' }} />
           </View>
           <Txt variant="faint">{t(item.mine ? 'tags.hintShared' : 'tags.hintPrivate')}</Txt>
         </View>
