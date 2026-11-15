@@ -27,7 +27,7 @@ interface Props {
 const ROW = 104;
 /** Dragging within this distance of the list's top or bottom scrolls it, this far each frame. */
 const EDGE = 72;
-const CREEP = 12;
+const CREEP = 5;
 
 /**
  * How a group's connection reads in one line: first whether this phone is

@@ -6,7 +6,8 @@ import { Sheet } from '../components/Sheet';
 import { ToggleRow } from '../components/ToggleRow';
 import { Txt } from '../components/Txt';
 import { t } from '../i18n';
-import type { GroupHeader, Settings, ViewerInfo } from '../lib/types';
+import build from '../build.json';
+import type { GroupHeader, Settings, ThemeChoice, ViewerInfo } from '../lib/types';
 import { useShell } from '../shell/shell';
 import { useNode } from '../store/node';
 import { useTheme } from '../theme/theme';
@@ -41,6 +42,11 @@ export function PreferencesSheet({ onClose }: Props) {
     { value: 'full', label: t('prefs.infoFull') },
     { value: 'line', label: t('prefs.infoLine') },
   ];
+  const themeOptions: { value: ThemeChoice; label: string }[] = [
+    { value: 'system', label: t('prefs.themeSystem') },
+    { value: 'light', label: t('prefs.themeLight') },
+    { value: 'dark', label: t('prefs.themeDark') },
+  ];
   const copyLog = async () => {
     await Clipboard.setStringAsync(node.log());
     shell.toast(t('settings.logCopied'), 'success');
@@ -56,6 +62,11 @@ export function PreferencesSheet({ onClose }: Props) {
     <Sheet title={t('prefs.title')} onClose={onClose} footer={<Button label={t('view.done')} kind="primary" onPress={onClose} />}>
       <View style={{ gap: theme.space[5] }}>
         <View style={{ gap: theme.space[4] }}>
+          <Txt variant="title">{t('prefs.appearance')}</Txt>
+          <Choice label={t('prefs.theme')} options={themeOptions} value={settings.theme} onChange={(next) => set({ theme: next })} />
+        </View>
+
+        <View style={section}>
           <Txt variant="title">{t('prefs.photos')}</Txt>
           <Choice label={t('view.layout')} options={viewOptions()} value={settings.view} onChange={(view) => set({ view })} />
           <Choice label={t('sort.label')} options={sortOptions()} value={settings.sort} onChange={(sort) => set({ sort, sortReverse: false })} />
@@ -109,6 +120,9 @@ export function PreferencesSheet({ onClose }: Props) {
           <Txt variant="title">{t('prefs.help')}</Txt>
           <Txt variant="muted">{t('settings.logHint')}</Txt>
           <Button label={t('settings.copyLog')} onPress={copyLog} />
+          <Txt variant="faint">
+            {build.number > 0 ? t('prefs.build', { number: build.number, date: build.date }) : t('prefs.buildLocal')}
+          </Txt>
         </View>
       </View>
     </Sheet>

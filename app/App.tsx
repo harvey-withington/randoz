@@ -16,7 +16,7 @@ import { PreferencesSheet } from './src/screens/PreferencesSheet';
 import { StartSheet } from './src/screens/StartSheet';
 import { ShellProvider } from './src/shell/shell';
 import { NodeProvider, useNode } from './src/store/node';
-import { ThemeProvider, useTheme } from './src/theme/theme';
+import { ThemeProvider, useTheme, useThemeChoice } from './src/theme/theme';
 
 export default function App() {
   const [fontsReady] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold });
@@ -60,6 +60,10 @@ function Root() {
   const current = groups.find((group) => group.id === openGroup);
   const shown = current && !current.joining ? current : null;
   const wide = width >= WIDE;
+  // The user's choice of light or dark lives with the other settings, in the core.
+  const chooseTheme = useThemeChoice();
+  const themeChoice = state?.settings.theme ?? 'system';
+  useEffect(() => chooseTheme(themeChoice), [chooseTheme, themeChoice]);
   const saved = state?.settings.panelWidth ?? 360;
   const listWidth = Math.max(LIST_MIN, Math.min(width - GROUP_MIN - DIVIDER, dragged ?? saved));
   useEffect(() => setDragged(null), [saved]);

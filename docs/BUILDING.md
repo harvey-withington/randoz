@@ -17,7 +17,7 @@ From the repo root:
 ```powershell
 npm run check            # type checks, core and app
 npm test                 # unit and end-to-end tests of the core, string tests of the app
-npm run build            # signed release APK for phones -> dist\randoz.apk
+npm run build            # signed release APK for phones -> dist\randoz-<date>-b<number>.apk
 npm run build:emulator   # the same plus the emulator's architecture -> dist\randoz-emulator.apk
 ```
 
@@ -108,5 +108,23 @@ screens and for one device's flows; two-device tests need real devices.
 
 ```powershell
 npm run build
-adb install -r dist\randoz.apk      # or copy the file to the phone and open it
+adb install -r dist\randoz-2026-11-15-b42.apk      # or: npm run serve-apk, and open the page on the phone
 ```
+
+## Numbered builds
+
+A release build for phones (`npm run build`) is numbered. The number is the
+count of commits on the branch it was built from, so it only goes up, and
+two builds of the same commit share a number.
+
+- The file is `dist\randoz-<date>-b<number>.apk`.
+- The app shows "Build <number>, <date>" at the bottom of Preferences.
+- Android gets the number as the version code, so a newer build installs
+  over an older one. To go back to an older build, uninstall first; that
+  removes the app's groups from the phone.
+- `dist\` keeps the six newest numbered builds and the build script deletes
+  older ones.
+- `npm run serve-apk` offers the newest build, with the earlier ones under
+  it.
+
+Emulator and debug builds keep fixed names and are not numbered.

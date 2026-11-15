@@ -42,9 +42,10 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
   //   groupHeader    how much the top of a group's screen shows
   //   viewerInfo     how much the photo viewer says about a photo
   //   panelWidth     the group list's width on a wide screen
+  //   theme          light, dark, or whatever the phone is set to
   let settings = {
     shareReminder: true, stayConnected: true, view: 'large', sort: 'date', sortReverse: false,
-    groupBy: 'none', viewerInfo: 'full', groupHeader: 'full', panelWidth: 360
+    groupBy: 'none', viewerInfo: 'full', groupHeader: 'full', panelWidth: 360, theme: 'system'
   }
   /** @type {Record<string, string[]>} the values a setting may take, where it is one of a few */
   const CHOICES = {
@@ -52,7 +53,8 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
     sort: ['date', 'title', 'person', 'size'],
     groupBy: ['none', 'person', 'tag'],
     viewerInfo: ['full', 'line', 'hidden'],
-    groupHeader: ['full', 'line']
+    groupHeader: ['full', 'line'],
+    theme: ['system', 'light', 'dark']
   }
   /** @type {string[]} group ids in the order the user arranged them; others come first, newest first */
   let order = []

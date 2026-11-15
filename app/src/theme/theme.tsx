@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 import { dark, font, fontSize, light, motion, radius, space, touch, type Palette } from './tokens';
 
@@ -35,15 +35,32 @@ function build(scheme: 'light' | 'dark'): Theme {
 
 const ThemeContext = createContext<Theme>(build('light'));
 
+/** Light, dark, or whatever the phone is set to. */
+export type ThemeChoice = 'system' | 'light' | 'dark';
+const ChoiceContext = createContext<(choice: ThemeChoice) => void>(() => {});
+
 interface Props {
   children: ReactNode;
 }
 
-/** Follows the phone's light or dark setting. */
+/**
+ * Follows the phone's light or dark setting, unless the user has chosen one
+ * in Preferences. The choice is kept by the core; whoever reads it there
+ * passes it in through `useThemeChoice`.
+ */
 export function ThemeProvider({ children }: Props) {
-  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const phone = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const [choice, setChoice] = useState<ThemeChoice>('system');
+  const scheme = choice === 'system' ? phone : choice;
   const theme = useMemo(() => build(scheme), [scheme]);
-  return <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>;
+  return (
+    <ChoiceContext.Provider value={setChoice}>
+      <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>
+    </ChoiceContext.Provider>
+  );
 }
+
+/** Tells the theme which the user has chosen. */
+export const useThemeChoice = (): ((choice: ThemeChoice) => void) => useContext(ChoiceContext);
 
 export const useTheme = (): Theme => useContext(ThemeContext);

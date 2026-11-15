@@ -72,6 +72,16 @@ test('grouped by person or tag, each section is named and untagged photos come l
     ['Bob', ['b']],
   ]);
 
+  // Sorted by person the other way round, the groups turn round too.
+  const turned = arrange(items, { ...all, groupBy: 'person', sort: 'person', reverse: true }, 'No tags');
+  assert.deepEqual(turned.map((section) => section.title), ['Bob', 'Alice']);
+  // Any other sort leaves the groups in name order and turns the photos inside them.
+  const byDate = arrange(items, { ...all, groupBy: 'person', reverse: true }, 'No tags');
+  assert.deepEqual(byDate.map((section) => [section.title, section.items.map((item) => item.id)]), [
+    ['Alice', ['a', 'c']],
+    ['Bob', ['b']],
+  ]);
+
   const byTag = arrange([...items, photo('d', { createdAt: 4 })], { ...all, groupBy: 'tag' }, 'No tags');
   assert.deepEqual(byTag.map((section) => [section.title, section.items.map((item) => item.id)]), [
     ['Favourites', ['c']],

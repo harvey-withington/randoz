@@ -1,5 +1,8 @@
 // Build settings that app.json cannot express.
 //
+// 0. A numbered build (scripts/build-android.ps1 sets RANDOZ_BUILD) carries
+//    its number as Android's versionCode, so a newer build installs over an
+//    older one and never the other way round by accident.
 // 1. On Windows the C++ build output goes to a short folder, because its
 //    file names are too long for Windows' 260-character path limit otherwise.
 // 2. Release builds are signed with the key described in
@@ -25,8 +28,10 @@ function readSigning() {
   return complete ? props : null
 }
 
-module.exports = ({ config }) =>
-  withAppBuildGradle(config, (gradle) => {
+module.exports = ({ config }) => {
+  const build = Number(process.env.RANDOZ_BUILD)
+  if (build > 0) config.android = { ...config.android, versionCode: build }
+  return withAppBuildGradle(config, (gradle) => {
     let text = gradle.modResults.contents
 
     if (process.platform === 'win32') {
@@ -58,3 +63,4 @@ module.exports = ({ config }) =>
     gradle.modResults.contents = text
     return gradle
   })
+}

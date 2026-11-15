@@ -47,6 +47,9 @@ export type GroupBy = 'none' | 'person' | 'tag';
 /** How much the photo viewer says about a photo. */
 export type ViewerInfo = 'full' | 'line' | 'hidden';
 
+/** Light, dark, or whatever the phone is set to. */
+export type ThemeChoice = 'system' | 'light' | 'dark';
+
 /** How the app behaves on this phone. Nothing here is told to anyone. */
 export interface Settings {
   /** Ask before each share who will see the photos. */
@@ -62,6 +65,7 @@ export interface Settings {
   groupHeader: GroupHeader;
   /** The group list's width on a wide screen. */
   panelWidth: number;
+  theme: ThemeChoice;
 }
 
 export interface Item {

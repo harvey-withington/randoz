@@ -22,7 +22,8 @@ group's data itself: it sees the core's state and calls its methods through
   in `src/locales/en.json`. Counts go through `plural()`. A test fails if
   the code uses a key that is missing, or the file holds one that is unused.
 - Colours and sizes come from `useTheme()` (`src/theme`), defined for light
-  and dark; the app follows the phone's setting. Components never hardcode
+  and dark; the app follows the phone's setting unless the user picks one
+  in Preferences. Components never hardcode
   a colour or a size, and colour is never the only signal: a member's
   colour always comes with their name.
 - No component over about 300 lines; extract a child when one grows.
@@ -152,7 +153,7 @@ layer in the app, not a `Modal`.
 | `ViewSheet` | Layout, Sort by, Reverse order, Group by (remembered for every group), then Show photos from (a chip per sharer) and Show photos tagged with any of (shared tags, then your own marked "private"; several can be on at once, and Any clears them), which last until the group is closed |
 | `DetailsSheet` | A photo's title, description and tags. Says first whether they are for the group (your photo) or for you alone. Tags already used in the group are offered as chips; a new one is typed, and is made lower case |
 | `GroupDetailsSheet` | A group's name and description: for everyone if you started it, else your own for it |
-| `PreferencesSheet` | Photos (layout, sort and its direction, group by, top of a group's screen, details above a photo), Sharing (ask before sharing), Connection (stay connected in the background), Help (copy connection log). Each change applies at once |
+| `PreferencesSheet` | Appearance (light, dark, or as the phone), Photos (layout, sort and its direction, group by, top of a group's screen, details above a photo), Sharing (ask before sharing), Connection (stay connected in the background), Help (copy connection log, and which build this is). Each change applies at once |
 | `InviteSheet` | The kinds of invite (shareable, selected; in person, described and not yet available), the invite as a QR code, **Send link**, **Copy link**, and **Turn this invite off** for the member who made it (asks first) |
 | `MembersSheet` | Each member's avatar (its dot says whether they are connected), name (with their nickname beside a chosen one), the line about them and photo count. Beside yourself, **Change** opens the `IdentityPicker` for this group; beside anyone else, **Block** (asks first). Under them, **Blocked**: each blocked member's name and **Unblock**. **Leave group** (asks first) |
 | `Viewer` | One photo full screen, which pinches to zoom: the thumbnail at once, the preview when it arrives. Above it, the photo's details in full (title, description, tags, the sharer's avatar, name and line about them, date, size), as one line, or hidden; the arrow switches between full and one line, and the choice is remembered. The pencil opens `DetailsSheet`. **Save to camera roll** (**Save again** once saved), **Unshare** on your own and **Block <name>** on anyone else's (both ask first). With nobody connected and the full-size photo not on this phone, Save is disabled and says why; while saving waits on someone, the button says who |

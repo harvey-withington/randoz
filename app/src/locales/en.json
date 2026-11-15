@@ -87,6 +87,13 @@
   "settings.logHint": "If something isn't arriving, this log helps work out why. It holds times and connection events, no photos or names.",
 
   "prefs.title": "Preferences",
+  "prefs.appearance": "Appearance",
+  "prefs.theme": "Light or dark",
+  "prefs.themeSystem": "As the phone",
+  "prefs.themeLight": "Light",
+  "prefs.themeDark": "Dark",
+  "prefs.build": "Build {number}, {date}",
+  "prefs.buildLocal": "A build without a number",
   "prefs.photos": "Photos",
   "prefs.groupHeader": "Top of a group's screen",
   "prefs.viewerInfo": "Details above a photo",

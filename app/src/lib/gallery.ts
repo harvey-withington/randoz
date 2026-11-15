@@ -91,9 +91,12 @@ export function arrange(items: Item[], arrangement: Arrangement, untagged: strin
     else if (tagsOf(item).length === 0) add('none', untagged, item);
     else for (const tag of tagsOf(item)) add('t:' + tag.toLowerCase(), tag, item);
   }
-  // Sections by name, with the photos that have no tag last.
+  // Sections by name, with the photos that have no tag last. Sorting by
+  // person while grouped by person orders the groups themselves, so its
+  // direction turns them round too.
+  const turned = arrangement.reverse && arrangement.groupBy === 'person' && arrangement.sort === 'person' ? -1 : 1;
   return [...sections.values()].sort(
-    (a, b) => Number(a.key === 'none') - Number(b.key === 'none') || a.title.localeCompare(b.title),
+    (a, b) => Number(a.key === 'none') - Number(b.key === 'none') || turned * a.title.localeCompare(b.title),
   );
 }
 
