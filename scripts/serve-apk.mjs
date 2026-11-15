@@ -65,4 +65,10 @@ http
           : ''),
     );
   })
+  // Something connected and did not speak HTTP: nearly always a browser that
+  // tried https:// first. Worth a line, because nothing else shows it.
+  .on('clientError', (err, socket) => {
+    console.log(new Date().toISOString(), socket.remoteAddress, 'not HTTP (a browser trying https?):', err.code);
+    socket.destroy();
+  })
   .listen(port, '0.0.0.0', () => console.log(`serving the numbered builds in dist/ on port ${port}`));
