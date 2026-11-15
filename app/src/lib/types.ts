@@ -134,7 +134,10 @@ export interface Group {
   /** How many phones this one is connected to in this group. */
   peers: number;
   me: Member;
+  /** Everyone in the group except those this phone has blocked. */
   members: Member[];
+  /** Members blocked on this phone: their key, the name they went by when blocked, and their nickname. */
+  blocked: { key: string; name: string; nickname: string }[];
   items: Item[];
   invites: InviteInfo[];
 }
@@ -187,4 +190,6 @@ export interface CoreMethods {
   /** For everyone if you created the group, else private. */
   setGroupDetails: { params: { group: string; name: string; description: string }; result: object };
   setGroupOrder: { params: { ids: string[] }; result: object };
+  /** On this phone alone; the member is not told. */
+  setBlocked: { params: { group: string; member: string; blocked: boolean }; result: object };
 }

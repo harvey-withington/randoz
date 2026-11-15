@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import { LogOut } from 'lucide-react-native';
+import { Ban, LogOut } from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
 import { Button } from '../components/Button';
 import { IdentityPicker } from '../components/IdentityPicker';
 import { Sheet } from '../components/Sheet';
 import { Txt } from '../components/Txt';
 import { plural, t } from '../i18n';
-import type { Group } from '../lib/types';
+import type { Group, Member } from '../lib/types';
 import { useShell } from '../shell/shell';
 import { useNode } from '../store/node';
 import { useTheme } from '../theme/theme';
@@ -19,7 +19,7 @@ interface Props {
 
 /**
  * Who is in the group, who is online, how much each has shared, how you
- * appear in it, and the way out.
+ * appear in it, whom you have blocked, and the way out.
  */
 export function MembersSheet({ group, onClose }: Props) {
   const theme = useTheme();
@@ -32,6 +32,29 @@ export function MembersSheet({ group, onClose }: Props) {
     node.call('setGroupIdentity', { group: group.id, identity }).then(
       () => setChoosing(false),
       (err: Error) => shell.toast(t('identity.failed', { reason: err.message }), 'error'),
+    );
+  };
+
+  const block = async (member: Member) => {
+    const ok = await shell.confirm({
+      title: t('block.title', { name: member.name }),
+      message: t('block.message'),
+      confirmLabel: t('block.confirm'),
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await node.call('setBlocked', { group: group.id, member: member.key, blocked: true });
+      shell.toast(t('block.done', { name: member.name }), 'info');
+    } catch (err) {
+      shell.toast(t('block.failed', { reason: (err as Error).message }), 'error');
+    }
+  };
+
+  const unblock = (key: string, name: string) => {
+    node.call('setBlocked', { group: group.id, member: key, blocked: false }).then(
+      () => shell.toast(t('block.undone', { name }), 'info'),
+      (err: Error) => shell.toast(t('block.failed', { reason: err.message }), 'error'),
     );
   };
 
@@ -94,11 +117,44 @@ export function MembersSheet({ group, onClose }: Props) {
                   kind="ghost"
                   onPress={() => setChoosing(!choosing)}
                 />
-              ) : null}
+              ) : (
+                <Button label={t('block.action')} icon={Ban} kind="ghost" onPress={() => block(member)} />
+              )}
             </View>
           );
         })}
       </View>
+      {group.blocked.length > 0 ? (
+        <View
+          style={{
+            marginTop: theme.space[4],
+            paddingTop: theme.space[4],
+            borderTopWidth: 1,
+            borderTopColor: theme.color.border,
+            gap: theme.space[1],
+          }}
+        >
+          <Txt variant="label">{t('block.listTitle')}</Txt>
+          <Txt variant="faint">{t('block.listHint')}</Txt>
+          {group.blocked.map((one) => (
+            <View
+              key={one.key}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: theme.space[3], minHeight: theme.touch }}
+            >
+              <Ban size={20} color={theme.color.textFaint} />
+              <View style={{ flex: 1 }}>
+                <Txt numberOfLines={1}>{one.name}</Txt>
+                {one.name === one.nickname ? null : (
+                  <Txt variant="muted" numberOfLines={1}>
+                    {one.nickname}
+                  </Txt>
+                )}
+              </View>
+              <Button label={t('block.undo')} kind="ghost" onPress={() => unblock(one.key, one.name)} />
+            </View>
+          ))}
+        </View>
+      ) : null}
       {choosing ? (
         <View style={{ marginTop: theme.space[4] }}>
           <IdentityPicker identities={node.state?.identities ?? []} value={group.identity} onChange={appearAs} />

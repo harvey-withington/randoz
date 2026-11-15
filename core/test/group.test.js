@@ -420,3 +420,44 @@ test('the group list keeps the order it was given, and settings only take values
   assert.equal(settings.viewerInfo, 'line')
   assert.equal('nonsense' in settings, false)
 })
+
+test('a blocked member and their photos vanish from this device, and nothing more of theirs is stored', async (t) => {
+  const { view, photo, pair, root } = await setup(t)
+  const { alice, bob, a, b } = await pair('Blocking')
+  const cache = path.join(root, 'alice', 'groups', a, 'cache')
+  const files = () => fs.readdirSync(cache)
+
+  const { id: first } = await bob.shareItem({ group: b, ...photo('one.jpg', 40000, 3000) })
+  await until(async () => !!(await view(alice, a)).items[0]?.files.thumbnail, 'bob\'s photo to reach alice')
+  await alice.getTier({ group: a, id: first, tier: 'original' })
+  await alice.setItemDetails({ group: a, id: first, title: 'Mine to forget', description: '', tags: [] })
+  assert.equal(files().filter((name) => name.startsWith(first)).length, 2)
+  const bobKey = (await view(bob, b)).me.key
+
+  await alice.setBlocked({ group: a, member: bobKey, blocked: true })
+  let hers = await view(alice, a)
+  assert.equal(hers.items.length, 0)
+  assert.deepEqual(hers.members.map((/** @type {any} */ m) => m.me), [true])
+  assert.equal(hers.blocked.length, 1)
+  assert.equal(hers.blocked[0].key, bobKey)
+  assert.deepEqual(files(), []) // what she had of his is gone from the disk
+  await assert.rejects(alice.getTier({ group: a, id: first, tier: 'original' }))
+
+  // What he shares from now on never arrives, and nothing is written.
+  await bob.shareItem({ group: b, ...photo('two.jpg', 40000, 3000) })
+  const mine = await alice.shareItem({ group: a, ...photo('hers.jpg', 20000, 2000) })
+  await until(async () => (await view(bob, b)).items.length === 3, 'bob to see all three: he is not told')
+  await new Promise((resolve) => setTimeout(resolve, 1500))
+  hers = await view(alice, a)
+  assert.deepEqual(hers.items.map((/** @type {any} */ item) => item.id), [mine.id])
+  assert.ok(files().every((name) => name.startsWith(mine.id)))
+
+  // Unblocking brings him and his photos back, without her old private title.
+  await alice.setBlocked({ group: a, member: bobKey, blocked: false })
+  await until(async () => (await view(alice, a)).items.length === 3, 'bob\'s photos to come back')
+  hers = await view(alice, a)
+  assert.equal(hers.members.length, 2)
+  assert.equal(hers.blocked.length, 0)
+  assert.equal(hers.items.find((/** @type {any} */ item) => item.id === first).title, '')
+  await until(async () => (await view(alice, a)).items.every((/** @type {any} */ item) => item.files.thumbnail), 'his thumbnails to be fetched again')
+})

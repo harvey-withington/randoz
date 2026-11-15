@@ -75,6 +75,12 @@ group's data itself: it sees the core's state and calls its methods through
   hue at 100 % saturation and the theme's lightness (`theme.tint(hue)`,
   `theme.tintSoft(hue)`); anything without its own colour uses the one
   accent.
+- **Blocking is private and complete.** A member blocked in a group is gone
+  from it on this phone: not listed, not counted, none of their photos, and
+  nothing of theirs downloaded. The confirmation says what it does and does
+  not do (they are not told; they still see your photos; saved copies stay).
+  The only place a blocked member appears is the Blocked list in Who's here,
+  by name alone, with **Unblock**.
 - **Say what is true about privacy, where it matters.** Before sharing and
   before leaving, the text says that people can save what you share and
   that leaving removes it from RANDOZ, not from their camera roll. The
@@ -148,5 +154,5 @@ layer in the app, not a `Modal`.
 | `GroupDetailsSheet` | A group's name and description: for everyone if you started it, else your own for it |
 | `PreferencesSheet` | Photos (layout, sort and its direction, group by, top of a group's screen, details above a photo), Sharing (ask before sharing), Connection (stay connected in the background), Help (copy connection log). Each change applies at once |
 | `InviteSheet` | The kinds of invite (shareable, selected; in person, described and not yet available), the invite as a QR code, **Send link**, **Copy link**, and **Turn this invite off** for the member who made it (asks first) |
-| `MembersSheet` | Each member's avatar (its dot says whether they are connected), name (with their nickname beside a chosen one), the line about them and photo count. Beside yourself, **Change** opens the `IdentityPicker` for this group. **Leave group** (asks first) |
-| `Viewer` | One photo full screen, which pinches to zoom: the thumbnail at once, the preview when it arrives. Above it, the photo's details in full (title, description, tags, the sharer's avatar, name and line about them, date, size), as one line, or hidden; the arrow switches between full and one line, and the choice is remembered. The pencil opens `DetailsSheet`. **Save to camera roll** (**Save again** once saved), and **Unshare** on your own (asks first). With nobody connected and the full-size photo not on this phone, Save is disabled and says why; while saving waits on someone, the button says who |
+| `MembersSheet` | Each member's avatar (its dot says whether they are connected), name (with their nickname beside a chosen one), the line about them and photo count. Beside yourself, **Change** opens the `IdentityPicker` for this group; beside anyone else, **Block** (asks first). Under them, **Blocked**: each blocked member's name and **Unblock**. **Leave group** (asks first) |
+| `Viewer` | One photo full screen, which pinches to zoom: the thumbnail at once, the preview when it arrives. Above it, the photo's details in full (title, description, tags, the sharer's avatar, name and line about them, date, size), as one line, or hidden; the arrow switches between full and one line, and the choice is remembered. The pencil opens `DetailsSheet`. **Save to camera roll** (**Save again** once saved), **Unshare** on your own and **Block <name>** on anyone else's (both ask first). With nobody connected and the full-size photo not on this phone, Save is disabled and says why; while saving waits on someone, the button says who |

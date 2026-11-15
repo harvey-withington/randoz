@@ -59,10 +59,13 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
   const cacheDir = path.join(dir, 'cache')
   const privateFile = path.join(dir, 'private.json')
   // What this member keeps to themselves about the group and other people's
-  // photos: their own names, descriptions and tags. It never leaves the device.
+  // photos: their own names, descriptions and tags, and whom they have
+  // blocked (member key -> the name they went by then). It never leaves the device.
   /** @type {{ group: { name?: string, description?: string },
-   *   items: Record<string, { title?: string, description?: string, tags?: string[] }> }} */
-  let notes = { group: {}, items: {} }
+   *   items: Record<string, { title?: string, description?: string, tags?: string[] }>,
+   *   blocked: Record<string, string> }} */
+  let notes = { group: {}, items: {}, blocked: {} }
+  const isBlocked = (/** @type {string} */ key) => Object.prototype.hasOwnProperty.call(notes.blocked, key)
 
   /** @type {any} */ let store = null
   /** @type {any} */ let swarm = null
@@ -118,7 +121,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
   function readNotes() {
     try {
       const saved = JSON.parse(fs.readFileSync(privateFile, 'utf8'))
-      notes = { group: saved.group || {}, items: saved.items || {} }
+      notes = { group: saved.group || {}, items: saved.items || {}, blocked: saved.blocked || {} }
     } catch {}
   }
 
@@ -332,6 +335,11 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
   const cacheName = (itemKey, tier) => `${itemKey}.${tier}`
   /** @param {string} name */
   const cachePath = (name) => path.join(cacheDir, name)
+  /** Deletes a file from the cache, if it is there. @param {string} name */
+  const forget = (name) => {
+    cached.delete(name)
+    fs.rmSync(cachePath(name), { force: true })
+  }
 
   /**
    * Makes sure one tier of an item is on disk, and returns its path.
@@ -347,7 +355,8 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
     const job = (async () => {
       const item = await getItem(base, itemKey)
       const entry = item && item.tiers[tier]
-      if (!item || !entry) throw new Error('No such item or tier')
+      // Nothing of a blocked member's is ever fetched.
+      if (!item || !entry || isBlocked(item.sharedBy)) throw new Error('No such item or tier')
       const bytes = await fetchTier(store, item.owner, entry, epochKey())
       fs.writeFileSync(cachePath(name), bytes)
       cached.add(name)
@@ -367,6 +376,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
   async function fetchThumbnails() {
     if (!base) return
     for (const item of await listItems(base)) {
+      if (isBlocked(item.sharedBy)) continue
       if (fetching.size >= EAGER_FETCHES) return
       if (item.tiers.thumbnail && !cached.has(cacheName(item.id, 'thumbnail'))) {
         ensureTier(item.id, 'thumbnail').catch((err) => log('thumbnail failed: ' + err.message))
@@ -423,7 +433,13 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
     const info = await getGroupInfo(base)
     const myKey = hex(base.local.key)
     const here = new Set(online.values())
-    const members = (await listMembers(base)).filter((m) => !m.left).map((m) => {
+    // A blocked member is not there at all, as far as the screen is told:
+    // not in the list, not counted, none of their photos.
+    const everyone = (await listMembers(base)).filter((m) => !m.left)
+    const blocked = everyone.filter((m) => isBlocked(m.key)).map((m) => ({
+      key: m.key, name: notes.blocked[m.key] || nicknameFor(m.key).name, nickname: nicknameFor(m.key).name
+    }))
+    const members = everyone.filter((m) => !isBlocked(m.key)).map((m) => {
       const nick = nicknameFor(m.key)
       return {
         key: m.key, name: m.name || nick.name, nickname: nick.name, hue: nick.hue,
@@ -432,7 +448,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
       }
     })
     const byKey = new Map(members.map((m) => [m.key, m]))
-    const items = (await listItems(base)).map((item) => {
+    const items = (await listItems(base)).filter((item) => !isBlocked(item.sharedBy)).map((item) => {
       const by = byKey.get(item.sharedBy)
       /** @type {Record<string, string | null>} */
       const files = {}
@@ -471,7 +487,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
       me: byKey.get(myKey) || {
         key: myKey, ...nicknameFor(myKey), nickname: nicknameFor(myKey).name, about: '', icon: null, me: true, online: isOnline()
       },
-      members, items, invites
+      members, items, invites, blocked
     }
   }
 
@@ -604,6 +620,56 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
       if (name && info && name !== info.name) notes.group.name = name
       if (description && info && description !== (info.description || '')) notes.group.description = description
       writeNotes()
+      onChange()
+    },
+
+    /**
+     * Blocks a member, for this device alone: they and everything they do
+     * here disappear, nothing of theirs is fetched from now on, and what was
+     * already fetched is deleted. They are not told. Unblocking brings them back.
+     *
+     * The group's log still carries their entries: it is one shared history
+     * and cannot be kept with a member's part missing. Their photos are not
+     * in the log; those are what is never stored.
+     * @param {string} memberKey @param {boolean} block
+     */
+    async setBlocked(memberKey, block) {
+      requireGroup()
+      if (memberKey === hex(base.local.key)) throw new Error('You cannot block yourself')
+      if (!block) {
+        delete notes.blocked[memberKey]
+        writeNotes()
+        onChange()
+        return
+      }
+      const member = (await listMembers(base)).find((m) => m.key === memberKey)
+      if (!member) throw new Error('No such member')
+      notes.blocked[memberKey] = member.name || nicknameFor(memberKey).name
+      writeNotes()
+
+      // Delete what this device already holds of theirs: the cached photos,
+      // their picture, what was written about their photos, and the blocks of
+      // their photo store.
+      const owners = new Set()
+      for (const item of await listItems(base)) {
+        if (item.sharedBy !== memberKey) continue
+        owners.add(item.owner)
+        delete notes.items[item.id]
+        for (const tier of TIERS) forget(cacheName(item.id, tier))
+      }
+      for (const name of [...cached]) if (name.startsWith('icon-' + memberKey.slice(0, 16) + '-')) forget(name)
+      for (const [icon, file] of iconFiles) if (!cached.has(path.basename(file))) iconFiles.delete(icon)
+      writeNotes()
+      for (const owner of owners) {
+        try {
+          const core = store.get({ key: unhex(owner) })
+          await core.ready()
+          if (core.length > 0) await core.clear(0, core.length)
+          await core.close()
+        } catch (err) {
+          log('could not clear a blocked member\'s photos: ' + /** @type {Error} */ (err).message)
+        }
+      }
       onChange()
     },
 

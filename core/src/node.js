@@ -248,6 +248,14 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
       await need(group).setGroupDetails(details)
     },
 
+    /**
+     * Blocks or unblocks a member of a group, on this device alone.
+     * @param {{ group: string, member: string, blocked: boolean }} params
+     */
+    async setBlocked({ group, member, blocked }) {
+      await need(group).setBlocked(member, blocked)
+    },
+
     /** The order of the group list, as the user arranged it. @param {{ ids: string[] }} params */
     async setGroupOrder({ ids }) {
       order = (Array.isArray(ids) ? ids : []).filter((id) => typeof id === 'string' && sessions.has(id))

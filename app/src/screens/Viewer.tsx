@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, BackHandler, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ChevronDown, ChevronUp, Download, EyeOff, Info, Pencil } from 'lucide-react-native';
+import { ArrowLeft, Ban, ChevronDown, ChevronUp, Download, EyeOff, Info, Pencil } from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
 import { Button, IconButton } from '../components/Button';
 import { Tags } from '../components/Tags';
@@ -93,6 +93,26 @@ export function Viewer({ group, item, connected, swipeBack, onStep, onClose }: P
       shell.toast(t('viewer.saveFailed', { reason: (err as Error).message }), 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Something you would rather not see: one step from the photo to never
+  // seeing its sharer again in this group.
+  const block = async () => {
+    const name = item.by?.name ?? '';
+    const ok = await shell.confirm({
+      title: t('block.title', { name }),
+      message: t('block.message'),
+      confirmLabel: t('block.confirm'),
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await node.call('setBlocked', { group: group.id, member: item.sharedBy, blocked: true });
+      shell.toast(t('block.done', { name }), 'info');
+      onClose();
+    } catch (err) {
+      shell.toast(t('block.failed', { reason: (err as Error).message }), 'error');
     }
   };
 
@@ -244,7 +264,11 @@ export function Viewer({ group, item, connected, swipeBack, onStep, onClose }: P
           disabled={cantSave && !saving}
           onPress={save}
         />
-        {item.mine ? <Button label={t('viewer.unshare')} icon={EyeOff} kind="danger" onPress={unshare} /> : null}
+        {item.mine ? (
+          <Button label={t('viewer.unshare')} icon={EyeOff} kind="danger" onPress={unshare} />
+        ) : (
+          <Button label={t('block.actionNamed', { name: item.by?.name ?? '' })} icon={Ban} kind="ghost" onPress={block} />
+        )}
       </View>
 
       {editing ? <DetailsSheet group={group} item={item} onClose={() => setEditing(false)} /> : null}
