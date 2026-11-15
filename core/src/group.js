@@ -4,9 +4,9 @@
 // Autobase merges them into one agreed order. `apply` turns that order into
 // the "view", a Hyperbee (sorted key/value store):
 //
-//   group              -> { name, createdAt, createdBy }
+//   group              -> { name, description, createdAt, createdBy }
 //   member/<writer>    -> { addedBy, addedAt, left, name, about, icon }
-//   item/<id>          -> the item entry, plus sharedBy
+//   item/<id>          -> the item entry, plus sharedBy, title, description, tags
 //   invite/<id>        -> { kind, key, createdBy, createdAt, revoked }
 //
 // Autobase applies whatever a writer appends, so every rule about who may do
@@ -22,6 +22,36 @@ export const MAX_ABOUT = 80
 /** A member's picture travels in the log as base64 text: about 30 KB of JPEG. */
 export const MAX_ICON = 40000
 const MAX_UNSHARE = 500
+export const MAX_GROUP_NAME = 60
+export const MAX_GROUP_DESCRIPTION = 300
+export const MAX_TITLE = 80
+export const MAX_DESCRIPTION = 500
+export const MAX_TAGS = 12
+export const MAX_TAG = 24
+
+/** @param {unknown} value @param {number} max */
+export const cleanText = (value, max) => (typeof value === 'string' ? value.trim().slice(0, max) : '')
+
+/**
+ * Tags as they are kept: trimmed, without a leading #, no empty ones, no
+ * repeats (whatever the capitals), and only so many.
+ * @param {unknown} value @returns {string[]}
+ */
+export function cleanTags(value) {
+  /** @type {string[]} */
+  const out = []
+  const seen = new Set()
+  for (const raw of Array.isArray(value) ? value : []) {
+    if (typeof raw !== 'string') continue
+    const tag = raw.trim().replace(/^#+/, '').trim().slice(0, MAX_TAG)
+    const key = tag.toLowerCase()
+    if (!tag || seen.has(key)) continue
+    seen.add(key)
+    out.push(tag)
+    if (out.length === MAX_TAGS) break
+  }
+  return out
+}
 
 /**
  * @typedef {{ blob: { byteOffset: number, blockOffset: number, blockLength: number, byteLength: number },
@@ -29,11 +59,11 @@ const MAX_UNSHARE = 500
  * @typedef {{ v: 1, id: string, type: 'photo' | 'video' | 'file', name: string, mime: string,
  *   width: number, height: number, createdAt: number, owner: string, epoch: number,
  *   tiers: { original: Tier, preview?: Tier, thumbnail?: Tier } }} ItemEntry
- * @typedef {ItemEntry & { sharedBy: string }} Item
+ * @typedef {ItemEntry & { sharedBy: string, title?: string, description?: string, tags?: string[] }} Item
  * @typedef {{ key: string, addedBy: string, addedAt: number, left: boolean, name?: string,
  *   about?: string, icon?: string }} Member
  * @typedef {{ id: string, kind: 'open', key: string, createdBy: string, createdAt: number, revoked: boolean }} InviteRecord
- * @typedef {{ name: string, createdAt: number, createdBy: string }} GroupInfo
+ * @typedef {{ name: string, description?: string, createdAt: number, createdBy: string }} GroupInfo
  */
 
 /**
@@ -73,8 +103,26 @@ async function apply(nodes, view, host, creator) {
     if (entry.type === 'group') {
       // Only the creator names the group, and only once.
       if (from !== creator() || (await view.get('group'))) continue
-      await view.put('group', { name: String(entry.name), createdAt: entry.at, createdBy: from })
+      await view.put('group', {
+        name: cleanText(entry.name, MAX_GROUP_NAME), description: '', createdAt: entry.at, createdBy: from
+      })
       await view.put('member/' + from, { addedBy: from, addedAt: entry.at, left: false })
+    } else if (entry.type === 'group-meta') {
+      // Only the creator renames or describes the group.
+      const group = (await view.get('group'))?.value
+      const name = cleanText(entry.name, MAX_GROUP_NAME)
+      if (from !== creator() || !group || !name) continue
+      await view.put('group', { ...group, name, description: cleanText(entry.description, MAX_GROUP_DESCRIPTION) })
+    } else if (entry.type === 'item-meta') {
+      // Only the member who shared an item titles, describes and tags it for the group.
+      const existing = (await view.get('item/' + entry.id))?.value
+      if (!isMember || !existing || existing.sharedBy !== from) continue
+      await view.put('item/' + entry.id, {
+        ...existing,
+        title: cleanText(entry.title, MAX_TITLE),
+        description: cleanText(entry.description, MAX_DESCRIPTION),
+        tags: cleanTags(entry.tags)
+      })
     } else if (entry.type === 'add-writer') {
       if (!isMember || (await view.get('member/' + entry.key))) continue
       // Members can write but do not vote on the order (indexer: false).

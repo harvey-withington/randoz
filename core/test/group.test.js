@@ -345,3 +345,77 @@ test('the one name from before identities becomes an identity its groups keep', 
   assert.equal((await view(again, group)).identity, state.identities[0].id)
   await until(async () => (await view(again, group)).me.name === 'Alice', 'the name to be told to the group')
 })
+
+test('a sharer titles, describes and tags a photo for the group; others keep their own', async (t) => {
+  const { view, photo, pair } = await setup(t)
+  const { alice, bob, a, b } = await pair('Details')
+  const { id } = await alice.shareItem({ group: a, ...photo('a.jpg', 30000, 2000) })
+  await until(async () => (await view(bob, b)).items.length === 1, 'the photo to reach bob')
+
+  // Alice's words are everyone's.
+  await alice.setItemDetails({ group: a, id, title: '  Breach!  ', description: 'Off the point', tags: ['#Whale', 'whale', ' sea '] })
+  await until(async () => (await view(bob, b)).items[0].title === 'Breach!', 'the title to reach bob')
+  let seen = (await view(bob, b)).items[0]
+  assert.equal(seen.description, 'Off the point')
+  assert.deepEqual(seen.tags, ['Whale', 'sea'])
+  assert.deepEqual(seen.myTags, [])
+
+  // Bob's are his alone.
+  await bob.setItemDetails({ group: b, id, title: 'The big one', description: '', tags: ['favourites'] })
+  seen = (await view(bob, b)).items[0]
+  assert.equal(seen.title, 'The big one')
+  assert.equal(seen.sharedTitle, 'Breach!')
+  assert.equal(seen.description, 'Off the point') // no override, so the sharer's
+  assert.deepEqual(seen.tags, ['Whale', 'sea'])
+  assert.deepEqual(seen.myTags, ['favourites'])
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  const hers = (await view(alice, a)).items[0]
+  assert.equal(hers.title, 'Breach!')
+  assert.deepEqual(hers.myTags, [])
+
+  // Clearing his goes back to hers.
+  await bob.setItemDetails({ group: b, id, title: '', description: '', tags: [] })
+  assert.equal((await view(bob, b)).items[0].title, 'Breach!')
+})
+
+test('the creator names and describes the group for everyone; a member can rename it for themselves', async (t) => {
+  const { view, pair } = await setup(t)
+  const { alice, bob, a, b } = await pair('Whale tour')
+  assert.equal((await view(alice, a)).creator, true)
+  assert.equal((await view(bob, b)).creator, false)
+
+  await alice.setGroupDetails({ group: a, name: 'Whale tour 2026', description: 'Saturday, from the pier' })
+  await until(async () => (await view(bob, b)).name === 'Whale tour 2026', 'the new name to reach bob')
+  assert.equal((await view(bob, b)).description, 'Saturday, from the pier')
+
+  await bob.setGroupDetails({ group: b, name: 'Whales with Alice', description: '' })
+  const his = await view(bob, b)
+  assert.equal(his.name, 'Whales with Alice')
+  assert.equal(his.sharedName, 'Whale tour 2026')
+  assert.equal(his.description, 'Saturday, from the pier')
+  await new Promise((resolve) => setTimeout(resolve, 500))
+  assert.equal((await view(alice, a)).name, 'Whale tour 2026')
+})
+
+test('the group list keeps the order it was given, and settings only take values they may', async (t) => {
+  const { start } = await setup(t)
+  const alice = await start('alice')
+  const { group: one } = await alice.createGroup({ name: 'One' })
+  const { group: two } = await alice.createGroup({ name: 'Two' })
+  const { group: three } = await alice.createGroup({ name: 'Three' })
+  const ids = async () => (await alice.snapshot()).groups.map((/** @type {any} */ g) => g.id)
+  assert.deepEqual(await ids(), [three, two, one]) // newest first until arranged
+
+  await alice.setGroupOrder({ ids: [one, three, two] })
+  assert.deepEqual(await ids(), [one, three, two])
+  const { group: four } = await alice.createGroup({ name: 'Four' })
+  assert.deepEqual(await ids(), [four, one, three, two]) // a new one goes on top
+
+  await alice.setSettings({ view: 'details', sort: 'sideways', panelWidth: 5, viewerInfo: 'line', nonsense: true })
+  const { settings } = await alice.snapshot()
+  assert.equal(settings.view, 'details')
+  assert.equal(settings.sort, 'newest')
+  assert.equal(settings.panelWidth, 360)
+  assert.equal(settings.viewerInfo, 'line')
+  assert.equal('nonsense' in settings, false)
+})

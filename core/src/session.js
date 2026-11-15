@@ -11,7 +11,10 @@ import Protomux from 'protomux'
 import c from 'compact-encoding'
 import b4a from 'b4a'
 import { derive, equal, hex, randomBytes, sha256, unhex } from './crypto.js'
-import { getGroupInfo, getItem, listInvites, listItems, listMembers, openGroup } from './group.js'
+import {
+  cleanTags, cleanText, getGroupInfo, getItem, listInvites, listItems, listMembers, openGroup,
+  MAX_DESCRIPTION, MAX_GROUP_DESCRIPTION, MAX_GROUP_NAME, MAX_TITLE
+} from './group.js'
 import { checkInviteProof, createInvite, decodeInvite, encodeInvite, inviteId, inviteProof, inviteTopic } from './invite.js'
 import { fetchTier, itemId, storeTier } from './items.js'
 import { nicknameFor } from './nickname.js'
@@ -54,6 +57,12 @@ function sharedDht(dht) {
 export async function createSession({ id, dir, fs, path, dht, log, onChange, isOnline, identityFor }) {
   const savedFile = path.join(dir, 'session.json')
   const cacheDir = path.join(dir, 'cache')
+  const privateFile = path.join(dir, 'private.json')
+  // What this member keeps to themselves about the group and other people's
+  // photos: their own names, descriptions and tags. It never leaves the device.
+  /** @type {{ group: { name?: string, description?: string },
+   *   items: Record<string, { title?: string, description?: string, tags?: string[] }> }} */
+  let notes = { group: {}, items: {} }
 
   /** @type {any} */ let store = null
   /** @type {any} */ let swarm = null
@@ -106,11 +115,21 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
     }))
   }
 
+  function readNotes() {
+    try {
+      const saved = JSON.parse(fs.readFileSync(privateFile, 'utf8'))
+      notes = { group: saved.group || {}, items: saved.items || {} }
+    } catch {}
+  }
+
+  const writeNotes = () => fs.writeFileSync(privateFile, JSON.stringify(notes))
+
   // --- Opening and closing ---------------------------------------------------
 
   async function open() {
     fs.mkdirSync(cacheDir, { recursive: true })
     cached = new Set(fs.readdirSync(cacheDir))
+    readNotes()
     store = new Corestore(path.join(dir, 'cores'))
     await store.ready()
     swarm = new Hyperswarm({ dht: sharedDht(dht), keyPair: await store.createKeyPair('swarm') })
@@ -421,7 +440,13 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
         const name = cacheName(item.id, tier)
         files[tier] = cached.has(name) ? cachePath(name) : null
       }
+      const mine = notes.items[item.id] || {}
       return {
+        // title and description are what to show: this member's own if they
+        // wrote one, else the sharer's. tags are the sharer's; myTags are private.
+        title: mine.title || item.title || '', sharedTitle: item.title || '',
+        description: mine.description || item.description || '', sharedDescription: item.description || '',
+        tags: item.tags || [], myTags: mine.tags || [],
         id: item.id, type: item.type, name: item.name, mime: item.mime,
         width: item.width, height: item.height, createdAt: item.createdAt,
         size: item.tiers.original.size, sharedBy: item.sharedBy,
@@ -435,7 +460,13 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
     }))
     fetchThumbnails().catch(() => {})
     return {
-      id, key: hex(base.key), name: info ? info.name : '', createdAt: info ? info.createdAt : 0,
+      id, key: hex(base.key), createdAt: info ? info.createdAt : 0,
+      // As for photos: this member's own name and description for the group
+      // if they wrote one, else the creator's.
+      name: notes.group.name || (info ? info.name : ''), sharedName: info ? info.name : '',
+      description: notes.group.description || (info && info.description) || '',
+      sharedDescription: (info && info.description) || '',
+      creator: !!info && info.createdBy === myKey,
       joinedAt, identity: identityId, writable: base.writable, joining: false, joinError: '', peers,
       me: byKey.get(myKey) || {
         key: myKey, ...nicknameFor(myKey), nickname: nicknameFor(myKey).name, about: '', icon: null, me: true, online: isOnline()
@@ -522,6 +553,58 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
     async unshareItems(ids) {
       requireWriter()
       await base.append({ type: 'unshare', ids })
+    },
+
+    /**
+     * Titles, describes and tags a photo. On your own photo that is for the
+     * whole group; on someone else's it is kept on this device, for you alone.
+     * @param {string} itemKey @param {{ title?: string, description?: string, tags?: string[] }} details
+     */
+    async setItemDetails(itemKey, details) {
+      requireGroup()
+      const item = await getItem(base, itemKey)
+      if (!item) throw new Error('That photo is no longer shared')
+      const title = cleanText(details.title, MAX_TITLE)
+      const description = cleanText(details.description, MAX_DESCRIPTION)
+      const tags = cleanTags(details.tags)
+      if (item.sharedBy === hex(base.local.key)) {
+        requireWriter()
+        await base.append({ type: 'item-meta', id: itemKey, title, description, tags })
+        return
+      }
+      // Private: a title or description equal to the sharer's is not an override.
+      /** @type {{ title?: string, description?: string, tags?: string[] }} */
+      const mine = {}
+      if (title && title !== (item.title || '')) mine.title = title
+      if (description && description !== (item.description || '')) mine.description = description
+      if (tags.length > 0) mine.tags = tags
+      if (Object.keys(mine).length > 0) notes.items[itemKey] = mine
+      else delete notes.items[itemKey]
+      writeNotes()
+      onChange()
+    },
+
+    /**
+     * Names and describes the group: for everyone if you created it, else
+     * for you alone (empty goes back to the creator's).
+     * @param {{ name?: string, description?: string }} details
+     */
+    async setGroupDetails(details) {
+      requireGroup()
+      const info = await getGroupInfo(base)
+      const name = cleanText(details.name, MAX_GROUP_NAME)
+      const description = cleanText(details.description, MAX_GROUP_DESCRIPTION)
+      if (info && info.createdBy === hex(base.local.key)) {
+        requireWriter()
+        if (!name) throw new Error('A group needs a name')
+        await base.append({ type: 'group-meta', name, description })
+        return
+      }
+      notes.group = {}
+      if (name && info && name !== info.name) notes.group.name = name
+      if (description && info && description !== (info.description || '')) notes.group.description = description
+      writeNotes()
+      onChange()
     },
 
     /** @param {string} itemKey @param {TierName} tier */

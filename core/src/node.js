@@ -35,9 +35,25 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
   let identities = []
   /** @type {string | null} the identity chosen last, offered first next time */
   let lastIdentity = null
-  // shareReminder: ask "everyone will see them" before each share.
-  // stayConnected: keep the connection while the app is off the screen.
-  let settings = { shareReminder: true, stayConnected: true }
+  // How the app behaves on this device. Nothing here is told to anyone.
+  //   shareReminder  ask "everyone will see them" before each share
+  //   stayConnected  keep the connection while the app is off the screen
+  //   view, sort, groupBy  how a group's photos are laid out
+  //   viewerInfo     how much the photo viewer says about a photo
+  //   panelWidth     the group list's width on a wide screen
+  let settings = {
+    shareReminder: true, stayConnected: true, view: 'large', sort: 'newest', groupBy: 'none',
+    viewerInfo: 'full', panelWidth: 360
+  }
+  /** @type {Record<string, string[]>} the values a setting may take, where it is one of a few */
+  const CHOICES = {
+    view: ['large', 'small', 'details'],
+    sort: ['newest', 'oldest', 'title', 'person', 'size'],
+    groupBy: ['none', 'person', 'tag'],
+    viewerInfo: ['full', 'line', 'hidden']
+  }
+  /** @type {string[]} group ids in the order the user arranged them; others come first, newest first */
+  let order = []
   /** @type {ReturnType<typeof setTimeout> | null} */ let stateTimer = null
   let closed = false
   let suspended = false
@@ -52,7 +68,21 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
     }
   }
 
-  const writeSaved = () => fs.writeFileSync(savedFile, JSON.stringify({ identities, lastIdentity, settings }))
+  const writeSaved = () => fs.writeFileSync(savedFile, JSON.stringify({ identities, lastIdentity, settings, order }))
+
+  /** The settings in `given` that exist and hold a value they may. @param {any} given */
+  function validSettings(given) {
+    /** @type {Record<string, any>} */
+    const out = {}
+    const defaults = /** @type {Record<string, any>} */ (settings)
+    for (const [key, value] of Object.entries(given || {})) {
+      if (!(key in defaults) || typeof value !== typeof defaults[key]) continue
+      if (CHOICES[key] && !CHOICES[key].includes(value)) continue
+      if (key === 'panelWidth' && !(value >= 200 && value <= 2000)) continue
+      out[key] = value
+    }
+    return out
+  }
 
   /** @param {string | null | undefined} id */
   const knownIdentity = (id) => (id && identities.some((one) => one.id === id) ? id : null)
@@ -138,8 +168,16 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
   async function snapshot() {
     await dropDuplicates()
     const groups = await Promise.all([...sessions.values()].map((session) => session.snapshot()))
-    // Newest first: the group you just started or joined is at the top.
-    groups.sort((a, b) => b.joinedAt - a.joinedAt)
+    // The user's own order; a group not yet placed (just started or joined)
+    // goes above them, newest first.
+    const place = (/** @type {{ id: string }} */ group) => order.indexOf(group.id)
+    groups.sort((a, b) => {
+      const pa = place(a)
+      const pb = place(b)
+      if (pa === -1 && pb === -1) return b.joinedAt - a.joinedAt
+      if (pa === -1 || pb === -1) return pa === -1 ? -1 : 1
+      return pa - pb
+    })
     return {
       online: isOnline(),
       identities: identities.map((one) => ({
@@ -192,6 +230,29 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
     /** @param {{ group: string, ids: string[] }} params */
     unshareItems: ({ group, ids }) => need(group).unshareItems(ids),
 
+    /**
+     * Titles, describes and tags a photo: for the group if it is yours, else for you alone.
+     * @param {{ group: string, id: string, title?: string, description?: string, tags?: string[] }} params
+     */
+    async setItemDetails({ group, id, ...details }) {
+      await need(group).setItemDetails(id, details)
+    },
+
+    /**
+     * Names and describes a group: for everyone if you created it, else for you alone.
+     * @param {{ group: string, name?: string, description?: string }} params
+     */
+    async setGroupDetails({ group, ...details }) {
+      await need(group).setGroupDetails(details)
+    },
+
+    /** The order of the group list, as the user arranged it. @param {{ ids: string[] }} params */
+    async setGroupOrder({ ids }) {
+      order = (Array.isArray(ids) ? ids : []).filter((id) => typeof id === 'string' && sessions.has(id))
+      writeSaved()
+      emitState()
+    },
+
     /** @param {{ group: string, id: string, tier: TierName }} params */
     getTier: ({ group, id, tier }) => need(group).getTier(id, tier),
 
@@ -208,6 +269,8 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
     async leaveGroup({ group }) {
       const session = need(group)
       sessions.delete(group)
+      order = order.filter((id) => id !== group)
+      writeSaved()
       await session.leave()
       emitState()
     },
@@ -215,11 +278,10 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
     /**
      * Changes how the app behaves on this device. Nothing here is told to
      * anyone else.
-     * @param {{ shareReminder?: boolean, stayConnected?: boolean }} params
+     * @param {Partial<typeof settings>} params any of the settings; unknown ones are ignored
      */
-    async setSettings({ shareReminder, stayConnected }) {
-      if (typeof shareReminder === 'boolean') settings = { ...settings, shareReminder }
-      if (typeof stayConnected === 'boolean') settings = { ...settings, stayConnected }
+    async setSettings(params) {
+      settings = { ...settings, ...validSettings(params) }
       writeSaved()
       emitState()
     },
@@ -325,7 +387,8 @@ export async function createNode({ storage, fs, path, bootstrap, onEvent }) {
   const saved = readSaved()
   identities = Array.isArray(saved.identities) ? saved.identities : []
   lastIdentity = saved.lastIdentity || null
-  settings = { ...settings, ...saved.settings }
+  settings = { ...settings, ...validSettings(saved.settings) }
+  order = Array.isArray(saved.order) ? saved.order : []
   // Before identities there was one name, used in every group. It becomes an
   // identity, and the groups already joined keep using it.
   const oldName = saved.profile && typeof saved.profile.name === 'string' ? saved.profile.name.trim() : ''
