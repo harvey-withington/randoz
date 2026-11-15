@@ -1,8 +1,10 @@
-import { ActivityIndicator, FlatList, Image, Pressable, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Image, PanResponder, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronRight, Images, QrCode, UserRound } from 'lucide-react-native';
+import { ChevronRight, GripVertical, Images, QrCode, Settings, UserRound } from 'lucide-react-native';
 import { Button, IconButton } from '../components/Button';
 import { ConnectionDot } from '../components/ConnectionDot';
+import { SearchBox } from '../components/SearchBox';
 import { Txt } from '../components/Txt';
 import { plural, t } from '../i18n';
 import type { Group, JoiningGroup, NodeState } from '../lib/types';
@@ -12,11 +14,17 @@ import { useTheme } from '../theme/theme';
 
 interface Props {
   state: NodeState;
+  /** The group that is open beside the list on a wide screen, to mark it. */
+  selected?: string | null;
   onOpen: (group: string) => void;
   onStart: () => void;
   onJoin: () => void;
   onProfile: () => void;
+  onPreferences: () => void;
 }
+
+/** Every row is this tall, so a dragged row knows how far one place is. */
+const ROW = 104;
 
 /**
  * How a group's connection reads in one line: first whether this phone is
@@ -30,11 +38,71 @@ export function connectionLabel(group: Group, connected: boolean): string {
   return online > 0 ? t('conn.count', { online, total: others.length }) : t('conn.none');
 }
 
-/** Every group this phone is in or joining, and the way to start or join another. */
-export function GroupsScreen({ state, onOpen, onStart, onJoin, onProfile }: Props) {
+const matches = (group: Group, search: string): boolean => {
+  const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const text = [group.name, group.sharedName, group.description, group.sharedDescription].join(' ').toLowerCase();
+  return words.every((word) => text.includes(word));
+};
+
+/**
+ * Every group this phone is in or joining, and the way to start or join
+ * another. The list can be searched by name and description, and put in any
+ * order by dragging a row's handle.
+ */
+export function GroupsScreen({ state, selected, onOpen, onStart, onJoin, onProfile, onPreferences }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const node = useNode();
   const c = theme.color;
+  const gap = theme.space[2];
+  const step = ROW + gap;
+  const [search, setSearch] = useState('');
+  // The row being dragged: where it started and where it would land.
+  const [drag, setDrag] = useState<{ id: string; from: number; to: number } | null>(null);
+  // The order just dropped, shown until the core's state says the same.
+  const [dropped, setDropped] = useState<string[] | null>(null);
+  const lift = useRef(new Animated.Value(0)).current;
+
+  const joining = state.groups.filter((group): group is JoiningGroup => group.joining);
+  const joined = state.groups.filter((group): group is Group => !group.joining);
+  const ids = joined.map((group) => group.id).join();
+  useEffect(() => setDropped(null), [ids]);
+
+  const ordered = dropped
+    ? [...joined].sort((a, b) => dropped.indexOf(a.id) - dropped.indexOf(b.id))
+    : joined;
+  const shown = ordered.filter((group) => matches(group, search));
+  const sortable = search.trim() === '' && shown.length > 1;
+
+  const move = (id: string, dy: number) => {
+    const from = shown.findIndex((group) => group.id === id);
+    if (from === -1) return;
+    const least = -from * step;
+    const most = (shown.length - 1 - from) * step;
+    const by = Math.max(least, Math.min(most, dy));
+    lift.setValue(by);
+    const to = from + Math.round(by / step);
+    setDrag((current) => (current && current.id === id && current.to === to ? current : { id, from, to }));
+  };
+
+  const drop = () => {
+    lift.setValue(0);
+    setDrag(null);
+    if (!drag || drag.from === drag.to) return;
+    const next = shown.map((group) => group.id);
+    next.splice(drag.to, 0, ...next.splice(drag.from, 1));
+    setDropped(next);
+    node.call('setGroupOrder', { ids: next }).catch(() => setDropped(null));
+  };
+
+  // While one row is dragged, the rows it passes step aside by one place.
+  const aside = (index: number): number => {
+    if (!drag) return 0;
+    if (drag.to > drag.from && index > drag.from && index <= drag.to) return -step;
+    if (drag.to < drag.from && index < drag.from && index >= drag.to) return step;
+    return 0;
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top }}>
       <View
@@ -46,28 +114,54 @@ export function GroupsScreen({ state, onOpen, onStart, onJoin, onProfile }: Prop
           paddingVertical: theme.space[2],
         }}
       >
-        <Txt variant="heading" accessibilityRole="header" style={{ flex: 1 }}>
+        <Txt variant="heading" accessibilityRole="header" numberOfLines={1} style={{ flex: 1 }}>
           {t('groups.title')}
         </Txt>
-        <IconButton
-          label={t('groups.profile')}
-          icon={UserRound}
-          onPress={onProfile}
-        />
+        <IconButton label={t('prefs.title')} icon={Settings} onPress={onPreferences} />
+        <IconButton label={t('groups.profile')} icon={UserRound} onPress={onProfile} />
       </View>
+      {joined.length > 1 ? (
+        <View style={{ flexDirection: 'row', paddingHorizontal: theme.space[3], paddingBottom: theme.space[2] }}>
+          <SearchBox label={t('search.groups')} value={search} onChange={setSearch} />
+        </View>
+      ) : null}
 
-      <FlatList
-        data={state.groups}
-        keyExtractor={(group) => group.id}
-        contentContainerStyle={{ padding: theme.space[3], gap: theme.space[2] }}
-        renderItem={({ item }) =>
-          item.joining ? (
-            <JoiningRow group={item} />
-          ) : (
-            <GroupRow group={item} connected={state.online} onPress={() => onOpen(item.id)} />
-          )
-        }
-      />
+      <ScrollView
+        scrollEnabled={!drag}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: theme.space[3], gap }}
+      >
+        {joining.map((group) => (
+          <JoiningRow key={group.id} group={group} />
+        ))}
+        {shown.map((group, index) => {
+          const dragging = drag?.id === group.id;
+          return (
+            <Animated.View
+              key={group.id}
+              style={{
+                zIndex: dragging ? 1 : 0,
+                elevation: dragging ? 6 : 0,
+                transform: [{ translateY: dragging ? lift : aside(index) }],
+              }}
+            >
+              <GroupRow
+                group={group}
+                connected={state.online}
+                selected={selected === group.id}
+                onPress={() => onOpen(group.id)}
+                onDrag={sortable ? (dy) => move(group.id, dy) : undefined}
+                onDrop={drop}
+              />
+            </Animated.View>
+          );
+        })}
+        {joined.length > 0 && shown.length === 0 ? (
+          <Txt variant="muted" center style={{ padding: theme.space[5] }}>
+            {t('search.noGroups')}
+          </Txt>
+        ) : null}
+      </ScrollView>
 
       <View
         style={{
@@ -92,10 +186,14 @@ interface RowProps {
   group: Group;
   /** Whether this phone is connected to the network. */
   connected: boolean;
+  selected: boolean;
   onPress: () => void;
+  /** Called with how far the handle has been dragged; absent when the list can't be reordered. */
+  onDrag?: (dy: number) => void;
+  onDrop: () => void;
 }
 
-function GroupRow({ group, connected, onPress }: RowProps) {
+function GroupRow({ group, connected, selected, onPress, onDrag, onDrop }: RowProps) {
   const theme = useTheme();
   const c = theme.color;
   const latest = [...group.items].reverse().find((item) => item.files.thumbnail);
@@ -106,20 +204,40 @@ function GroupRow({ group, connected, onPress }: RowProps) {
     'groups.photosNone',
   )}`;
   const label = connectionLabel(group, connected);
+
+  // The handle keeps hold of the drag; the newest callbacks are read through refs.
+  const handlers = useRef({ onDrag, onDrop });
+  handlers.current = { onDrag, onDrop };
+  const handle = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: () => handlers.current.onDrag?.(0),
+        onPanResponderMove: (_event, gesture) => handlers.current.onDrag?.(gesture.dy),
+        onPanResponderRelease: () => handlers.current.onDrop(),
+        onPanResponderTerminate: () => handlers.current.onDrop(),
+      }),
+    [],
+  );
+
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${group.name}. ${counts}. ${label}`}
+      accessibilityState={{ selected }}
+      accessibilityLabel={[group.name, group.description, counts, label].filter(Boolean).join('. ')}
       onPress={onPress}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
         gap: theme.space[3],
-        padding: theme.space[3],
+        height: ROW,
+        paddingLeft: theme.space[3],
         borderRadius: theme.radius.md,
-        borderWidth: 1,
-        borderColor: c.border,
-        backgroundColor: pressed ? c.surface2 : c.surface,
+        borderWidth: selected ? 1.5 : 1,
+        borderColor: selected ? c.accent : c.border,
+        backgroundColor: pressed ? c.surface2 : selected ? c.accentSoft : c.surface,
       })}
     >
       <View
@@ -139,16 +257,33 @@ function GroupRow({ group, connected, onPress }: RowProps) {
           <Images size={24} color={c.textFaint} />
         )}
       </View>
-      <View style={{ flex: 1, gap: 2 }}>
+      <View style={{ flex: 1, gap: 1 }}>
         <Txt variant="title" numberOfLines={1}>
           {group.name}
         </Txt>
         <Txt variant="muted" numberOfLines={1}>
-          {counts}
+          {group.description || counts}
         </Txt>
+        {group.description ? (
+          <Txt variant="faint" numberOfLines={1}>
+            {counts}
+          </Txt>
+        ) : null}
         <ConnectionDot online={connected} label={label} />
       </View>
-      <ChevronRight size={20} color={c.textFaint} />
+      {onDrag ? (
+        <View
+          accessibilityLabel={t('groups.reorder')}
+          {...handle.panHandlers}
+          style={{ width: theme.touch, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <GripVertical size={20} color={c.textFaint} />
+        </View>
+      ) : (
+        <View style={{ width: theme.touch, alignItems: 'center' }}>
+          <ChevronRight size={20} color={c.textFaint} />
+        </View>
+      )}
     </Pressable>
   );
 }

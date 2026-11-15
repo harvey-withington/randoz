@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { LogOut } from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
-import { ConnectionDot } from '../components/ConnectionDot';
 import { Button } from '../components/Button';
 import { IdentityPicker } from '../components/IdentityPicker';
 import { Sheet } from '../components/Sheet';
@@ -67,6 +66,14 @@ export function MembersSheet({ group, onClose }: Props) {
           return (
             <View
               key={member.key}
+              accessible
+              accessibilityLabel={[
+                member.me ? `${member.name} (${t('members.you')})` : member.name,
+                member.about,
+                member.me ? '' : t(member.online ? 'conn.online' : 'conn.offline'),
+              ]
+                .filter(Boolean)
+                .join('. ')}
               style={{ flexDirection: 'row', alignItems: 'center', gap: theme.space[3], minHeight: theme.touch }}
             >
               <Avatar person={member} />
@@ -80,9 +87,6 @@ export function MembersSheet({ group, onClose }: Props) {
                   {plural(count, 'members.photosOne', 'members.photos', 'members.photosNone')}
                   {aka}
                 </Txt>
-                {member.me ? null : (
-                  <ConnectionDot online={member.online} label={t(member.online ? 'conn.online' : 'conn.offline')} />
-                )}
               </View>
               {member.me ? (
                 <Button

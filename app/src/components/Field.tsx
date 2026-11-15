@@ -13,10 +13,12 @@ interface Props {
   autoFocus?: boolean;
   /** Called when the keyboard's Done key is pressed. */
   onSubmit?: () => void;
+  /** Several lines, growing as they are typed. */
+  multiline?: boolean;
 }
 
-/** A labelled one-line text field. UNCLI's `.input`. */
-export function Field({ label, value, onChange, placeholder, hint, maxLength, autoFocus, onSubmit }: Props) {
+/** A labelled text field, one line unless `multiline`. UNCLI's `.input`. */
+export function Field({ label, value, onChange, placeholder, hint, maxLength, autoFocus, onSubmit, multiline }: Props) {
   const theme = useTheme();
   const c = theme.color;
   return (
@@ -30,10 +32,13 @@ export function Field({ label, value, onChange, placeholder, hint, maxLength, au
         placeholderTextColor={c.textFaint}
         autoFocus={autoFocus}
         maxLength={maxLength}
-        returnKeyType="done"
-        onSubmitEditing={onSubmit}
+        multiline={multiline}
+        textAlignVertical={multiline ? 'top' : 'center'}
+        returnKeyType={multiline ? 'default' : 'done'}
+        onSubmitEditing={multiline ? undefined : onSubmit}
         style={{
-          minHeight: theme.touch,
+          minHeight: multiline ? theme.touch * 2 : theme.touch,
+          paddingVertical: multiline ? theme.space[2] : 0,
           borderWidth: 1,
           borderColor: c.borderStrong,
           borderRadius: theme.radius.md,

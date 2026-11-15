@@ -37,8 +37,40 @@ export interface Member extends Person {
   online: boolean;
 }
 
+/** How a group's photos are laid out. */
+export type ViewType = 'large' | 'small' | 'details';
+export type Sort = 'newest' | 'oldest' | 'title' | 'person' | 'size';
+export type GroupBy = 'none' | 'person' | 'tag';
+/** How much the photo viewer says about a photo. */
+export type ViewerInfo = 'full' | 'line' | 'hidden';
+
+/** How the app behaves on this phone. Nothing here is told to anyone. */
+export interface Settings {
+  /** Ask before each share who will see the photos. */
+  shareReminder: boolean;
+  /** Keep the connection while the app is off the screen. */
+  stayConnected: boolean;
+  view: ViewType;
+  sort: Sort;
+  groupBy: GroupBy;
+  viewerInfo: ViewerInfo;
+  /** The group list's width on a wide screen. */
+  panelWidth: number;
+}
+
 export interface Item {
   id: string;
+  /** The title to show: your own if you wrote one, else the sharer's. May be empty. */
+  title: string;
+  /** The sharer's title, whatever yours is. */
+  sharedTitle: string;
+  /** As for the title. */
+  description: string;
+  sharedDescription: string;
+  /** The sharer's tags, which the whole group sees. */
+  tags: string[];
+  /** Your own tags, which nobody else sees. */
+  myTags: string[];
   type: 'photo' | 'video' | 'file';
   name: string;
   mime: string;
@@ -79,7 +111,14 @@ export interface Group {
   id: string;
   joining: false;
   key: string;
+  /** The name to show: your own for the group if you gave it one, else the creator's. */
   name: string;
+  sharedName: string;
+  /** As for the name. May be empty. */
+  description: string;
+  sharedDescription: string;
+  /** You created this group, so its name and description are yours to set for everyone. */
+  creator: boolean;
   createdAt: number;
   joinedAt: number;
   /** The identity used here; null is the random one. */
@@ -101,11 +140,7 @@ export interface NodeState {
   /** The identity chosen last, offered first next time. */
   lastIdentity: string | null;
   /** shareReminder: ask before each share who will see the photos. */
-  settings: {
-    shareReminder: boolean;
-    /** Keep the connection while the app is off the screen. */
-    stayConnected: boolean;
-  };
+  settings: Settings;
   groups: (Group | JoiningGroup)[];
 }
 
@@ -137,5 +172,13 @@ export interface CoreMethods {
   };
   deleteIdentity: { params: { id: string }; result: object };
   setGroupIdentity: { params: { group: string; identity: string | null }; result: object };
-  setSettings: { params: { shareReminder?: boolean; stayConnected?: boolean }; result: object };
+  setSettings: { params: Partial<Settings>; result: object };
+  /** On your own photo this is for the group; on someone else's it is private. */
+  setItemDetails: {
+    params: { group: string; id: string; title: string; description: string; tags: string[] };
+    result: object;
+  };
+  /** For everyone if you created the group, else private. */
+  setGroupDetails: { params: { group: string; name: string; description: string }; result: object };
+  setGroupOrder: { params: { ids: string[] }; result: object };
 }

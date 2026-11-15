@@ -1,16 +1,18 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, BackHandler, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ActivityIndicator, BackHandler, PanResponder, useWindowDimensions, View } from 'react-native';
 import * as IntentLauncher from 'expo-intent-launcher';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, useFonts } from '@expo-google-fonts/inter';
 import { Txt } from './src/components/Txt';
+import { Welcome } from './src/components/Welcome';
 import { t } from './src/i18n';
 import { GroupScreen } from './src/screens/GroupScreen';
 import { GroupsScreen } from './src/screens/GroupsScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
-import { JoinSheet } from './src/screens/JoinSheet';
 import { IdentitiesSheet } from './src/screens/IdentitiesSheet';
+import { JoinSheet } from './src/screens/JoinSheet';
+import { PreferencesSheet } from './src/screens/PreferencesSheet';
 import { StartSheet } from './src/screens/StartSheet';
 import { ShellProvider } from './src/shell/shell';
 import { NodeProvider, useNode } from './src/store/node';
@@ -29,24 +31,38 @@ export default function App() {
   );
 }
 
-type OpenSheet = 'start' | 'join' | 'profile' | null;
+type OpenSheet = 'start' | 'join' | 'profile' | 'preferences' | null;
 
 const FLAG_ACTIVITY_NEW_TASK = 0x10000000;
+/** From this width the group list and the open group sit side by side. */
+const WIDE = 720;
+const LIST_MIN = 260;
+const GROUP_MIN = 380;
+const DIVIDER = 16;
 
 /**
  * Picks the screen. With no groups: the welcome screen. Otherwise the list
- * of groups, or the one group that is open. Back from a group returns to
- * the list.
+ * of groups, or the one group that is open; Back from a group returns to
+ * the list. On a wide screen the list and the open group are side by side,
+ * with a divider that can be dragged.
  */
 function Root() {
   const theme = useTheme();
-  const { state, startError } = useNode();
+  const node = useNode();
+  const { state, startError } = node;
+  const { width } = useWindowDimensions();
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [sheet, setSheet] = useState<OpenSheet>(null);
+  // The list's width while the divider is being dragged.
+  const [dragged, setDragged] = useState<number | null>(null);
 
   const groups = state?.groups ?? [];
   const current = groups.find((group) => group.id === openGroup);
   const shown = current && !current.joining ? current : null;
+  const wide = width >= WIDE;
+  const saved = state?.settings.panelWidth ?? 360;
+  const listWidth = Math.max(LIST_MIN, Math.min(width - GROUP_MIN - DIVIDER, dragged ?? saved));
+  useEffect(() => setDragged(null), [saved]);
 
   // A group that is left, or removed by a duplicate join, closes itself.
   // (One that was only just started may not be in the state yet.)
@@ -71,6 +87,38 @@ function Root() {
     return () => held.remove();
   }, [shown, sheet]);
 
+  // The divider reads the newest width through a ref, and saves where it is let go.
+  const widths = useRef({ list: listWidth, start: listWidth });
+  widths.current.list = listWidth;
+  const divider = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => {
+          widths.current.start = widths.current.list;
+        },
+        onPanResponderMove: (_event, gesture) => setDragged(widths.current.start + gesture.dx),
+        onPanResponderRelease: () => {
+          node.call('setSettings', { panelWidth: Math.round(widths.current.list) }).catch(() => setDragged(null));
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const list = state ? (
+    <GroupsScreen
+      state={state}
+      selected={wide ? openGroup : null}
+      onOpen={setOpenGroup}
+      onStart={() => setSheet('start')}
+      onJoin={() => setSheet('join')}
+      onProfile={() => setSheet('profile')}
+      onPreferences={() => setSheet('preferences')}
+    />
+  ) : null;
+
   let screen: ReactNode;
   if (startError) {
     screen = (
@@ -87,20 +135,43 @@ function Root() {
         <Txt variant="muted">{t('app.starting')}</Txt>
       </Centered>
     );
-  } else if (shown) {
-    screen = <GroupScreen key={shown.id} group={shown} onBack={() => setOpenGroup(null)} />;
   } else if (groups.length === 0) {
     screen = <HomeScreen onStart={() => setSheet('start')} onJoin={() => setSheet('join')} />;
-  } else {
+  } else if (wide) {
     screen = (
-      <GroupsScreen
-        state={state}
-        onOpen={setOpenGroup}
-        onStart={() => setSheet('start')}
-        onJoin={() => setSheet('join')}
-        onProfile={() => setSheet('profile')}
-      />
+      <View style={{ flex: 1, flexDirection: 'row' }}>
+        <View style={{ width: listWidth }}>{list}</View>
+        <View
+          accessibilityLabel={t('layout.divider')}
+          {...divider.panHandlers}
+          style={{
+            width: DIVIDER,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: theme.color.surface,
+            borderLeftWidth: 1,
+            borderRightWidth: 1,
+            borderColor: theme.color.border,
+          }}
+        >
+          <View
+            style={{
+              width: 4,
+              height: 44,
+              borderRadius: 2,
+              backgroundColor: dragged === null ? theme.color.borderStrong : theme.color.accent,
+            }}
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          {shown ? <GroupScreen key={shown.id} group={shown} beside onBack={() => setOpenGroup(null)} /> : <Welcome />}
+        </View>
+      </View>
     );
+  } else if (shown) {
+    screen = <GroupScreen key={shown.id} group={shown} onBack={() => setOpenGroup(null)} />;
+  } else {
+    screen = list;
   }
 
   return (
@@ -119,6 +190,7 @@ function Root() {
       ) : null}
       {sheet === 'join' ? <JoinSheet onClose={() => setSheet(null)} onManage={() => setSheet('profile')} /> : null}
       {sheet === 'profile' ? <IdentitiesSheet onClose={() => setSheet(null)} /> : null}
+      {sheet === 'preferences' ? <PreferencesSheet onClose={() => setSheet(null)} /> : null}
     </View>
   );
 }

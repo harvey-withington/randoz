@@ -1,21 +1,22 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, BackHandler, Image, View } from 'react-native';
+import { ActivityIndicator, BackHandler, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Download, EyeOff } from 'lucide-react-native';
+import { ArrowLeft, ChevronDown, ChevronUp, Download, EyeOff, Info, Pencil } from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
 import { Button, IconButton } from '../components/Button';
-import { ConnectionDot } from '../components/ConnectionDot';
 import { Txt } from '../components/Txt';
+import { ZoomImage } from '../components/ZoomImage';
 import { t } from '../i18n';
+import { labelOf, sizeLabel, tagsOf } from '../lib/gallery';
 import { saveToCameraRoll } from '../lib/save';
-import type { Item } from '../lib/types';
+import type { Group, Item, ViewerInfo } from '../lib/types';
 import { useShell } from '../shell/shell';
 import { toUri, useNode } from '../store/node';
 import { useTheme } from '../theme/theme';
+import { DetailsSheet } from './DetailsSheet';
 
 interface Props {
-  /** The id of the group the photo is in. */
-  group: string;
+  group: Group;
   item: Item;
   /** Whether this phone is connected to anyone in the group. */
   connected: boolean;
@@ -23,8 +24,10 @@ interface Props {
 }
 
 /**
- * One photo, full screen. Shows the thumbnail at once and swaps in the
- * preview when it arrives; the original is fetched only to save it.
+ * One photo, full screen, which can be pinched to zoom. Shows the thumbnail
+ * at once and swaps in the preview when it arrives; the original is fetched
+ * only to save it. Above the photo is what is known about it, in full, as
+ * one line, or not at all: the user's choice, remembered.
  *
  * It is a layer over the gallery, not a system dialog, so toasts show above
  * it. Back closes it.
@@ -37,23 +40,30 @@ export function Viewer({ group, item, connected, onClose }: Props) {
   const c = theme.color;
   const [failed, setFailed] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const info: ViewerInfo = node.state?.settings.viewerInfo ?? 'full';
   const best = item.files.preview ?? item.files.original ?? item.files.thumbnail;
   const sharp = item.files.preview !== null || item.files.original !== null;
   const { id } = item;
   // The full-size photo comes from its owner, or from anyone who has fetched it.
   const ownerOnline = item.mine || item.by?.online === true;
   const cantSave = item.files.original === null && !connected;
+  const sharer = group.members.find((member) => member.key === item.sharedBy);
+  const who = item.mine ? t('viewer.byYou') : t('viewer.by', { name: item.by?.name ?? '' });
+  const status = item.mine ? '' : t(ownerOnline ? 'conn.online' : 'conn.offline');
+  const tags = tagsOf(item);
+  const when = new Date(item.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
   useEffect(() => {
     if (sharp) return;
     let stale = false;
-    node.call('getTier', { group, id, tier: 'preview' }).catch(() => {
+    node.call('getTier', { group: group.id, id, tier: 'preview' }).catch(() => {
       if (!stale) setFailed(true);
     });
     return () => {
       stale = true;
     };
-  }, [group, id, sharp, node]);
+  }, [group.id, id, sharp, node]);
 
   useEffect(() => {
     const held = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -63,10 +73,14 @@ export function Viewer({ group, item, connected, onClose }: Props) {
     return () => held.remove();
   }, [onClose]);
 
+  const show = (next: ViewerInfo) => {
+    node.call('setSettings', { viewerInfo: next }).catch(() => {});
+  };
+
   const save = async () => {
     setSaving(true);
     try {
-      const granted = await saveToCameraRoll(node, group, [item]);
+      const granted = await saveToCameraRoll(node, group.id, [item]);
       shell.toast(t(granted ? 'select.savedOne' : 'viewer.saveDenied'), granted ? 'success' : 'error');
     } catch (err) {
       shell.toast(t('viewer.saveFailed', { reason: (err as Error).message }), 'error');
@@ -84,7 +98,7 @@ export function Viewer({ group, item, connected, onClose }: Props) {
     });
     if (!ok) return;
     try {
-      await node.call('unshareItems', { group, ids: [id] });
+      await node.call('unshareItems', { group: group.id, ids: [id] });
       shell.toast(t('select.unsharedOne'), 'info');
       onClose();
     } catch (err) {
@@ -106,28 +120,73 @@ export function Viewer({ group, item, connected, onClose }: Props) {
         paddingBottom: insets.bottom,
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.space[2], padding: theme.space[2] }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.space[1], padding: theme.space[2] }}>
         <IconButton label={t('common.back')} icon={ArrowLeft} onPress={onClose} />
-        {item.by ? <Avatar person={item.by} size={28} /> : null}
-        <View style={{ flex: 1, marginLeft: theme.space[1] }}>
-          <Txt numberOfLines={1}>
-            {item.mine ? t('viewer.byYou') : t('viewer.by', { name: item.by?.name ?? '' })}
-          </Txt>
-          {item.mine || !item.by ? null : (
-            <ConnectionDot online={ownerOnline} label={t(ownerOnline ? 'conn.online' : 'conn.offline')} />
-          )}
+        {/* The one-line summary: whose it is (their dot says if they are connected) and what it is. */}
+        <View
+          accessible
+          accessibilityLabel={[labelOf(item), who, status].filter(Boolean).join('. ')}
+          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.space[2] }}
+        >
+          {info === 'line' && item.by ? <Avatar person={item.by} size={28} /> : null}
+          {info === 'line' ? (
+            <Txt numberOfLines={1} style={{ flex: 1 }}>
+              {item.title ? `${item.title} · ${who}` : who}
+            </Txt>
+          ) : null}
         </View>
+        <IconButton label={t('details.edit')} icon={Pencil} onPress={() => setEditing(true)} />
+        {info === 'hidden' ? (
+          <IconButton label={t('viewer.showInfo')} icon={Info} onPress={() => show('full')} />
+        ) : (
+          <IconButton
+            label={t(info === 'full' ? 'viewer.lessInfo' : 'viewer.moreInfo')}
+            icon={info === 'full' ? ChevronUp : ChevronDown}
+            onPress={() => show(info === 'full' ? 'line' : 'full')}
+          />
+        )}
       </View>
 
+      {info === 'full' ? (
+        <View
+          style={{
+            gap: theme.space[2],
+            paddingHorizontal: theme.space[4],
+            paddingBottom: theme.space[3],
+            borderBottomWidth: 1,
+            borderBottomColor: c.border,
+          }}
+        >
+          <Txt variant="title">{labelOf(item)}</Txt>
+          {item.description ? <Txt>{item.description}</Txt> : null}
+          {tags.length > 0 ? (
+            <Txt variant="muted" color={c.accent}>
+              {tags.map((tag) => '#' + tag).join('  ')}
+            </Txt>
+          ) : null}
+          <View
+            accessible
+            accessibilityLabel={[who, status, sharer?.about].filter(Boolean).join('. ')}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: theme.space[3] }}
+          >
+            {item.by ? <Avatar person={item.by} size={40} /> : null}
+            <View style={{ flex: 1 }}>
+              <Txt numberOfLines={1}>{who}</Txt>
+              {sharer?.about ? (
+                <Txt variant="muted" numberOfLines={2}>
+                  {sharer.about}
+                </Txt>
+              ) : null}
+              <Txt variant="faint" numberOfLines={1}>
+                {[when, sizeLabel(item.size), `${item.width} × ${item.height}`].join(' · ')}
+              </Txt>
+            </View>
+          </View>
+        </View>
+      ) : null}
+
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        {best ? (
-          <Image
-            accessibilityLabel={item.name}
-            source={{ uri: toUri(best) }}
-            resizeMode="contain"
-            style={{ width: '100%', height: '100%' }}
-          />
-        ) : null}
+        {best ? <ZoomImage key={best} uri={toUri(best)} label={labelOf(item)} /> : null}
         {!sharp ? (
           <View
             style={{
@@ -183,6 +242,8 @@ export function Viewer({ group, item, connected, onClose }: Props) {
         />
         {item.mine ? <Button label={t('viewer.unshare')} icon={EyeOff} kind="danger" onPress={unshare} /> : null}
       </View>
+
+      {editing ? <DetailsSheet group={group} item={item} onClose={() => setEditing(false)} /> : null}
     </View>
   );
 }

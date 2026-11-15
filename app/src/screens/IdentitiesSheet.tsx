@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
 import { ChevronRight, ImagePlus, Plus, Trash2 } from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
 import { Button } from '../components/Button';
@@ -22,7 +21,7 @@ interface Props {
 /**
  * This phone's identities: the ways its owner can appear in a group. Each
  * is a name, a picture and a line about them; a group uses one, or none.
- * There is no account behind any of them. Also holds the few settings.
+ * There is no account behind any of them.
  */
 export function IdentitiesSheet({ onClose }: Props) {
   const theme = useTheme();
@@ -37,11 +36,6 @@ export function IdentitiesSheet({ onClose }: Props) {
     const identity = identities.find((one) => one.id === editing);
     return <IdentityEditor identity={identity} onDone={() => setEditing(null)} />;
   }
-
-  const copyLog = async () => {
-    await Clipboard.setStringAsync(node.log());
-    shell.toast(t('settings.logCopied'), 'success');
-  };
 
   return (
     <Sheet
@@ -86,41 +80,6 @@ export function IdentitiesSheet({ onClose }: Props) {
             </Pressable>
           );
         })}
-      </View>
-
-      <View
-        style={{
-          marginTop: theme.space[5],
-          paddingTop: theme.space[4],
-          borderTopWidth: 1,
-          borderTopColor: c.border,
-          gap: theme.space[2],
-          alignItems: 'flex-start',
-        }}
-      >
-        {node.state?.settings.shareReminder === false ? (
-          <Button
-            label={t('settings.remindAgain')}
-            kind="ghost"
-            onPress={() => {
-              node.call('setSettings', { shareReminder: true }).then(
-                () => shell.toast(t('settings.remindOn'), 'success'),
-                () => {},
-              );
-            }}
-          />
-        ) : null}
-        <Txt variant="faint">{t('settings.stayHint')}</Txt>
-        <Button
-          label={t(node.state?.settings.stayConnected === false ? 'settings.stayOff' : 'settings.stayOn')}
-          kind="ghost"
-          onPress={() => {
-            const next = node.state?.settings.stayConnected === false;
-            node.call('setSettings', { stayConnected: next }).catch(() => {});
-          }}
-        />
-        <Txt variant="faint">{t('settings.logHint')}</Txt>
-        <Button label={t('settings.copyLog')} kind="ghost" onPress={copyLog} />
       </View>
     </Sheet>
   );

@@ -3,6 +3,7 @@ import { Check, Download } from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
 import { Txt } from '../components/Txt';
 import { t } from '../i18n';
+import { labelOf } from '../lib/gallery';
 import type { Item } from '../lib/types';
 import { toUri } from '../store/node';
 import { useTheme } from '../theme/theme';
@@ -33,7 +34,7 @@ export function PhotoTile({ item, size, selecting, selected, onPress, onLongPres
     <Pressable
       accessibilityRole={selecting ? 'checkbox' : 'imagebutton'}
       accessibilityState={selecting ? { checked: selected } : undefined}
-      accessibilityLabel={`${item.name}. ${marks.filter(Boolean).join(', ')}`}
+      accessibilityLabel={`${labelOf(item)}. ${marks.filter(Boolean).join(', ')}`}
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={300}
