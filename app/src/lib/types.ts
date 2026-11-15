@@ -32,6 +32,8 @@ export interface Member extends Person {
   /** A short line about them; may be empty. */
   about: string;
   icon: string | null;
+  /** They started this group. */
+  creator: boolean;
   me: boolean;
   /** Connected to this phone right now. For yourself: connected to the network. */
   online: boolean;

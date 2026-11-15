@@ -9,7 +9,6 @@ import { Txt } from '../components/Txt';
 import { ZoomImage } from '../components/ZoomImage';
 import { t } from '../i18n';
 import { labelOf, sizeLabel } from '../lib/gallery';
-import { useBackSwipe } from '../lib/swipe';
 import { saveToCameraRoll } from '../lib/save';
 import type { Group, Item, ViewerInfo } from '../lib/types';
 import { useShell } from '../shell/shell';
@@ -22,8 +21,6 @@ interface Props {
   item: Item;
   /** Whether this phone is connected to anyone in the group. */
   connected: boolean;
-  /** Whether a swipe from the left edge closes it: not where its edge is not the window's. */
-  swipeBack: boolean;
   /** Shows the photo after (1) or before (-1) this one. */
   onStep: (by: 1 | -1) => void;
   onClose: () => void;
@@ -31,7 +28,8 @@ interface Props {
 
 /**
  * One photo, full screen, which can be pinched to zoom. A swipe left or right
- * goes to the next or previous photo; a swipe from the left edge closes it. Shows the thumbnail
+ * goes to the next or previous photo. No swipe or pinch closes it: Back and
+ * the arrow do. Shows the thumbnail
  * at once and swaps in the preview when it arrives; the original is fetched
  * only to save it. Above the photo is what is known about it, in full, as
  * one line, or not at all: the user's choice, remembered.
@@ -39,7 +37,7 @@ interface Props {
  * It is a layer over the gallery, not a system dialog, so toasts show above
  * it. Back closes it.
  */
-export function Viewer({ group, item, connected, swipeBack, onStep, onClose }: Props) {
+export function Viewer({ group, item, connected, onStep, onClose }: Props) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const node = useNode();
@@ -58,7 +56,6 @@ export function Viewer({ group, item, connected, swipeBack, onStep, onClose }: P
   const sharer = group.members.find((member) => member.key === item.sharedBy);
   const who = item.mine ? t('viewer.byYou') : t('viewer.by', { name: item.by?.name ?? '' });
   const status = item.mine ? '' : t(ownerOnline ? 'conn.online' : 'conn.offline');
-  const swipe = useBackSwipe(onClose, swipeBack);
   const when = new Date(item.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
   useEffect(() => {
@@ -146,7 +143,6 @@ export function Viewer({ group, item, connected, swipeBack, onStep, onClose }: P
         paddingTop: insets.top,
         paddingBottom: insets.bottom,
       }}
-      {...swipe}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.space[1], padding: theme.space[2] }}>
         <IconButton label={t('common.back')} icon={ArrowLeft} onPress={onClose} />

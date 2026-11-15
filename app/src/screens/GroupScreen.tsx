@@ -358,7 +358,6 @@ export function GroupScreen({ group, onBack, beside }: Props) {
           group={group}
           item={viewed}
           connected={online}
-          swipeBack={!beside}
           onStep={step}
           onClose={() => setViewing(null)}
         />

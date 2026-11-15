@@ -34,6 +34,9 @@ export function ZoomImage({ uri, label, onSwipe }: Props) {
   const shift = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const now = useRef({ scale: 1, x: 0, y: 0 });
   const start = useRef({ scale: 1, x: 0, y: 0, pinch: 0 });
+  // Whether two fingers have been down at any point in this gesture. A pinch
+  // is never also a swipe or a tap, however its fingers happen to travel.
+  const pinched = useRef(false);
   const lastTap = useRef(0);
 
   const responder = useMemo(() => {
@@ -60,11 +63,13 @@ export function ZoomImage({ uri, label, onSwipe }: Props) {
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
+      onPanResponderGrant: (event) => {
         start.current = { ...now.current, pinch: 0 };
+        pinched.current = event.nativeEvent.touches.length >= 2;
       },
       onPanResponderMove: (event, gesture) => {
         if (event.nativeEvent.touches.length >= 2) {
+          pinched.current = true;
           const apart = distance(event);
           // A second finger just landed: measure from here.
           if (start.current.pinch === 0) start.current = { ...now.current, pinch: apart };
@@ -79,12 +84,12 @@ export function ZoomImage({ uri, label, onSwipe }: Props) {
       onPanResponderRelease: (_event, gesture) => {
         // Not zoomed in, one finger, mostly sideways: on to the next photo.
         const sideways = Math.abs(gesture.dx) >= SWIPE && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5;
-        if (now.current.scale < 1.05 && start.current.pinch === 0 && sideways) {
+        if (now.current.scale < 1.05 && !pinched.current && sideways) {
           swiped.current?.(gesture.dx < 0 ? 1 : -1);
           return;
         }
         if (now.current.scale < 1.05) settle(1);
-        const still = Math.abs(gesture.dx) < 8 && Math.abs(gesture.dy) < 8 && start.current.pinch === 0;
+        const still = Math.abs(gesture.dx) < 8 && Math.abs(gesture.dy) < 8 && !pinched.current;
         if (!still) return;
         const time = Date.now();
         if (time - lastTap.current < DOUBLE_TAP_MS) {

@@ -92,6 +92,7 @@ export function MembersSheet({ group, onClose }: Props) {
               accessible
               accessibilityLabel={[
                 member.me ? `${member.name} (${t('members.you')})` : member.name,
+                member.creator ? t('members.creator') : '',
                 member.about,
                 member.me ? '' : t(member.online ? 'conn.online' : 'conn.offline'),
               ]
@@ -105,6 +106,11 @@ export function MembersSheet({ group, onClose }: Props) {
                   {member.name}
                   {member.me ? ` (${t('members.you')})` : ''}
                 </Txt>
+                {member.creator ? (
+                  <Txt variant="faint" color={theme.color.accent}>
+                    {t('members.creator')}
+                  </Txt>
+                ) : null}
                 {member.about ? <Txt variant="muted">{member.about}</Txt> : null}
                 <Txt variant="muted" numberOfLines={1}>
                   {plural(count, 'members.photosOne', 'members.photos', 'members.photosNone')}

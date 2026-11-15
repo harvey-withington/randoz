@@ -38,10 +38,10 @@ group's data itself: it sees the core's state and calls its methods through
   open group (back to the list). With nothing open it goes to the phone's
   home screen and leaves the app running: letting Android close the screen
   would leave the core running behind it.
-- **A swipe from the left edge goes back**, wherever Back would: out of the
-  photo viewer, out of a group. In the viewer a swipe left or right goes to
-  the next or previous photo. Not beside the list on a wide screen, where
-  the screen's edge is not the window's.
+- **A swipe from the left edge goes back** out of a group, as Back would.
+  Not beside the list on a wide screen, where the screen's edge is not the
+  window's. In the photo viewer sideways swipes belong to the photos: left
+  and right go to the next and previous, and no swipe or pinch closes it.
 - **The app turns with the phone.** No screen assumes it is taller than it
   is wide.
 - **A tag has its own colour**, worked out from its letters (`tagHue`) and
@@ -155,5 +155,5 @@ layer in the app, not a `Modal`.
 | `GroupDetailsSheet` | A group's name and description: for everyone if you started it, else your own for it |
 | `PreferencesSheet` | Appearance (light, dark, or as the phone), Photos (layout, sort and its direction, group by, top of a group's screen, details above a photo), Sharing (ask before sharing), Connection (stay connected in the background), Help (copy connection log, and which build this is). Each change applies at once |
 | `InviteSheet` | The kinds of invite (shareable, selected; in person, described and not yet available), the invite as a QR code, **Send link**, **Copy link**, and **Turn this invite off** for the member who made it (asks first) |
-| `MembersSheet` | Each member's avatar (its dot says whether they are connected), name (with their nickname beside a chosen one), the line about them and photo count. Beside yourself, **Change** opens the `IdentityPicker` for this group; beside anyone else, **Block** (asks first). Under them, **Blocked**: each blocked member's name and **Unblock**. **Leave group** (asks first) |
+| `MembersSheet` | Each member's avatar (its dot says whether they are connected), name (with their nickname beside a chosen one), "Started this group" on whoever did, the line about them and photo count. Beside yourself, **Change** opens the `IdentityPicker` for this group; beside anyone else, **Block** (asks first). Under them, **Blocked**: each blocked member's name and **Unblock**. **Leave group** (asks first) |
 | `Viewer` | One photo full screen, which pinches to zoom: the thumbnail at once, the preview when it arrives. Above it, the photo's details in full (title, description, tags, the sharer's avatar, name and line about them, date, size), as one line, or hidden; the arrow switches between full and one line, and the choice is remembered. The pencil opens `DetailsSheet`. **Save to camera roll** (**Save again** once saved), **Unshare** on your own and **Block <name>** on anyone else's (both ask first). With nobody connected and the full-size photo not on this phone, Save is disabled and says why; while saving waits on someone, the button says who |

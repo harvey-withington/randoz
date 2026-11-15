@@ -444,6 +444,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
       return {
         key: m.key, name: m.name || nick.name, nickname: nick.name, hue: nick.hue,
         about: m.about || '', icon: iconPath(m.key, m.icon),
+        creator: !!info && m.key === info.createdBy,
         me: m.key === myKey, online: m.key === myKey ? isOnline() : here.has(m.key)
       }
     })
@@ -485,7 +486,7 @@ export async function createSession({ id, dir, fs, path, dht, log, onChange, isO
       creator: !!info && info.createdBy === myKey,
       joinedAt, identity: identityId, writable: base.writable, joining: false, joinError: '', peers,
       me: byKey.get(myKey) || {
-        key: myKey, ...nicknameFor(myKey), nickname: nicknameFor(myKey).name, about: '', icon: null, me: true, online: isOnline()
+        key: myKey, ...nicknameFor(myKey), nickname: nicknameFor(myKey).name, about: '', icon: null, creator: false, me: true, online: isOnline()
       },
       members, items, invites, blocked
     }

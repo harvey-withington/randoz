@@ -383,6 +383,10 @@ test('the creator names and describes the group for everyone; a member can renam
   const { alice, bob, a, b } = await pair('Whale tour')
   assert.equal((await view(alice, a)).creator, true)
   assert.equal((await view(bob, b)).creator, false)
+  // Everyone can see who started it.
+  for (const seen of [await view(alice, a), await view(bob, b)]) {
+    assert.deepEqual(seen.members.filter((/** @type {any} */ m) => m.creator).map((/** @type {any} */ m) => m.key), [(await view(alice, a)).me.key])
+  }
 
   await alice.setGroupDetails({ group: a, name: 'Whale tour 2026', description: 'Saturday, from the pier' })
   await until(async () => (await view(bob, b)).name === 'Whale tour 2026', 'the new name to reach bob')

@@ -237,6 +237,7 @@
   "members.photos": "{count} photos",
   "members.photosOne": "1 photo",
   "members.photosNone": "No photos yet",
+  "members.creator": "Started this group",
   "members.change": "Change",
   "block.action": "Block",
   "block.actionNamed": "Block {name}",
