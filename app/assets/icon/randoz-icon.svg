@@ -3,22 +3,22 @@
   <g transform="translate(512 512)">
     <circle r="480" fill="#FDF4DC"/>
     <g transform="scale(-1 1)">
-    <path d="M110.85,64 L110.85,467.02 A480 480 0 0 1 -349.03,329.51 Z" fill="#D93A49"/>
-    <path d="M0,128 L-349.03,329.51 A480 480 0 0 1 -459.88,-137.51 Z" fill="#EB7A05"/>
-    <path d="M-110.85,64 L-459.88,-137.51 A480 480 0 0 1 -110.85,-467.02 Z" fill="#F0B74A"/>
-    <path d="M-110.85,-64 L-110.85,-467.02 A480 480 0 0 1 349.03,-329.51 Z" fill="#D93A49"/>
-    <path d="M0,-128 L349.03,-329.51 A480 480 0 0 1 459.88,137.51 Z" fill="#EB7A05"/>
-    <path d="M110.85,-64 L459.88,137.51 A480 480 0 0 1 110.85,467.02 Z" fill="#F0B74A"/>
-    <path d="M110.85,-64 L110.85,467.02" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
-    <path d="M110.85,64 L-349.03,329.51" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
-    <path d="M0,128 L-459.88,-137.51" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
-    <path d="M-110.85,64 L-110.85,-467.02" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
-    <path d="M-110.85,-64 L349.03,-329.51" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
-    <path d="M0,-128 L459.88,137.51" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
+    <path d="M154.15,89 L154.15,454.57 A480 480 0 0 1 -316.59,360.79 Z" fill="#D93A49"/>
+    <path d="M0,178 L-316.59,360.79 A480 480 0 0 1 -470.75,-93.79 Z" fill="#EB7A05"/>
+    <path d="M-154.15,89 L-470.75,-93.79 A480 480 0 0 1 -154.15,-454.57 Z" fill="#F0B74A"/>
+    <path d="M-154.15,-89 L-154.15,-454.57 A480 480 0 0 1 316.59,-360.79 Z" fill="#D93A49"/>
+    <path d="M0,-178 L316.59,-360.79 A480 480 0 0 1 470.75,93.79 Z" fill="#EB7A05"/>
+    <path d="M154.15,-89 L470.75,93.79 A480 480 0 0 1 154.15,454.57 Z" fill="#F0B74A"/>
+    <path d="M154.15,-89 L154.15,89 L0,178 L-154.15,89 L-154.15,-89 L0,-178 Z" fill="#14213D"/>
+    <path d="M154.15,-89 L154.15,454.57" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
+    <path d="M154.15,89 L-316.59,360.79" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
+    <path d="M0,178 L-470.75,-93.79" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
+    <path d="M-154.15,89 L-154.15,-454.57" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
+    <path d="M-154.15,-89 L316.59,-360.79" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
+    <path d="M0,-178 L470.75,93.79" stroke="#FDF4DC" stroke-width="10.56" stroke-linecap="round" fill="none"/>
     </g>
     <circle r="480" fill="none" stroke="#FDF4DC" stroke-width="21.6"/>
-    <circle r="160" fill="#14213D" stroke="#FDF4DC" stroke-width="10.56"/>
-    <g transform="scale(1.55) translate(0 -11)">
+    <g transform="scale(1.75) translate(0 -11)">
     <path d="M0 -62 C38 -62 54 -32 54 -8 C54 22 24 46 13 60 L-13 60 C-24 46 -54 22 -54 -8 C-54 -32 -38 -62 0 -62 Z" fill="#FDF4DC"/>
     <path d="M0 -62 C15 -62 21 -27 21 -6 C21 24 10 48 6 60 L-6 60 C-10 48 -21 24 -21 -6 C-21 -27 -15 -62 0 -62 Z" fill="#BFD9F5"/>
     <path d="M-11 60 L-8 70 M11 60 L8 70" stroke="#FDF4DC" stroke-width="3" stroke-linecap="round" fill="none"/>

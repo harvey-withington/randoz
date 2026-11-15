@@ -6,15 +6,15 @@
       <g transform="translate(512 512)">
         <circle r="300" fill="white"/>
         <g transform="scale(-1 1)">
-        <path d="M106.09,-61.25 L106.09,280.62" stroke="black" stroke-width="10.5" stroke-linecap="round" fill="none"/>
-        <path d="M106.09,61.25 L-189.98,232.18" stroke="black" stroke-width="10.5" stroke-linecap="round" fill="none"/>
-        <path d="M0,122.5 L-296.07,-48.43" stroke="black" stroke-width="10.5" stroke-linecap="round" fill="none"/>
-        <path d="M-106.09,61.25 L-106.09,-280.62" stroke="black" stroke-width="10.5" stroke-linecap="round" fill="none"/>
-        <path d="M-106.09,-61.25 L189.98,-232.18" stroke="black" stroke-width="10.5" stroke-linecap="round" fill="none"/>
-        <path d="M0,-122.5 L296.07,48.43" stroke="black" stroke-width="10.5" stroke-linecap="round" fill="none"/>
+        <path d="M158.05,-91.25 L158.05,254.99" stroke="black" stroke-width="10.5" stroke-linecap="round" fill="none"/>
+        <path d="M158.05,91.25 L-141.8,264.37" stroke="black" stroke-width="10.5" stroke-linecap="round" fill="none"/>
+        <path d="M0,182.5 L-299.85,9.38" stroke="black" stroke-width="10.5" stroke-linecap="round" fill="none"/>
+        <path d="M-158.05,91.25 L-158.05,-254.99" stroke="black" stroke-width="10.5" stroke-linecap="round" fill="none"/>
+        <path d="M-158.05,-91.25 L141.8,-264.37" stroke="black" stroke-width="10.5" stroke-linecap="round" fill="none"/>
+        <path d="M0,-182.5 L299.85,-9.38" stroke="black" stroke-width="10.5" stroke-linecap="round" fill="none"/>
         </g>
-        <circle r="153.125" fill="black"/>
-        <g transform="scale(1.90625) translate(0 -11)">
+        <path d="M158.05,-91.25 L158.05,91.25 L0,182.5 L-158.05,91.25 L-158.05,-91.25 L0,-182.5 Z" fill="black"/>
+        <g transform="scale(2) translate(0 -11)">
     <path d="M0 -62 C38 -62 54 -32 54 -8 C54 22 24 46 13 60 L-13 60 C-24 46 -54 22 -54 -8 C-54 -32 -38 -62 0 -62 Z" fill="white"/>
     <path d="M0 -62 C15 -62 21 -27 21 -6 C21 24 10 48 6 60 L-6 60 C-10 48 -21 24 -21 -6 C-21 -27 -15 -62 0 -62 Z" fill="white"/>
     <path d="M-11 60 L-8 70 M11 60 L8 70" stroke="white" stroke-width="3" stroke-linecap="round" fill="none"/>

@@ -2,8 +2,10 @@
 //
 //   node scripts/make-icons.mjs
 //
-// The icon is a camera iris of six blades (red, amber, orange, twice round)
-// with a hot-air balloon in its opening. It is drawn here, in code, so the
+// The icon is a camera iris of six straight-edged blades (red, amber, orange,
+// twice round) with a hot-air balloon in its opening. The opening is the
+// hexagon the blades' edges leave between them, as in a real iris: nothing is
+// laid over the middle to round it off. It is drawn here, in code, so the
 // geometry stays exact and a change is one number.
 //
 // Writes to app/assets/icon/ the drawings (SVG):
@@ -70,6 +72,9 @@ function blades(outer, opening) {
   });
 }
 
+/** The opening the blades leave: a hexagon with its corners `opening` from the centre. */
+const hexagon = (opening) => 'M' + [0, 1, 2, 3, 4, 5].map((k) => point(opening, -90 + 60 + 60 * k)).join(' L') + ' Z';
+
 /** The balloon, about 130 tall, centred a little above 0,0 so it sits well with its basket. */
 function balloon(scale, colours) {
   const { envelope, stripe, basket, ropes } = colours;
@@ -83,21 +88,21 @@ function balloon(scale, colours) {
 
 /**
  * The icon on a 1024 square with nothing behind it.
- * `iris` is the iris's radius, `hole` the radius of the dark opening, and
+ * `iris` is the iris's radius, `hole` how far the opening's corners are from the centre, and
  * `lift` how large the balloon is drawn.
  */
 function icon({ iris, hole, lift }) {
-  const parts = blades(iris, hole * 0.8);
+  const parts = blades(iris, hole);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <title>RANDOZ</title>
   <g transform="translate(512 512)">
     <circle r="${iris}" fill="${CREAM}"/>
     <g transform="${TWIST}">
     ${parts.map((blade) => `<path d="${blade.d}" fill="${blade.fill}"/>`).join('\n    ')}
+    <path d="${hexagon(hole)}" fill="${NAVY}"/>
     ${parts.map((blade) => `<path d="${blade.edge}" stroke="${CREAM}" stroke-width="${round(iris * 0.022)}" stroke-linecap="round" fill="none"/>`).join('\n    ')}
     </g>
     <circle r="${iris}" fill="none" stroke="${CREAM}" stroke-width="${round(iris * 0.045)}"/>
-    <circle r="${hole}" fill="${NAVY}" stroke="${CREAM}" stroke-width="${round(iris * 0.022)}"/>
     ${balloon(lift, { envelope: CREAM, stripe: SKY, basket: AMBER, ropes: CREAM })}
   </g>
 </svg>
@@ -106,7 +111,7 @@ function icon({ iris, hole, lift }) {
 
 /** One colour, for Android to tint: the blades as solid shapes with gaps between, and the balloon. */
 function mono({ iris, hole, lift }) {
-  const parts = blades(iris, hole * 0.8);
+  const parts = blades(iris, hole);
   const gap = round(iris * 0.035);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <title>RANDOZ</title>
@@ -118,7 +123,7 @@ function mono({ iris, hole, lift }) {
         <g transform="${TWIST}">
         ${parts.map((blade) => `<path d="${blade.edge}" stroke="black" stroke-width="${gap}" stroke-linecap="round" fill="none"/>`).join('\n        ')}
         </g>
-        <circle r="${hole}" fill="black"/>
+        <path d="${hexagon(hole)}" fill="black"/>
         ${balloon(lift, { envelope: 'white', stripe: 'white', basket: 'white', ropes: 'white' })}
       </g>
     </mask>
@@ -130,8 +135,8 @@ function mono({ iris, hole, lift }) {
 
 // The iris as first drawn fills most of the square. As an Android icon it has
 // to sit inside the middle two thirds, which is all a launcher is sure to show.
-const ORIGINAL = { iris: 480, hole: 160, lift: 1.55 };
-const BOLD = { iris: 480, hole: 245, lift: 3.05 };
+const ORIGINAL = { iris: 480, hole: 178, lift: 1.75 };
+const BOLD = { iris: 480, hole: 292, lift: 3.2 };
 const inset = (shape, to) => {
   const by = to / shape.iris;
   return { iris: to, hole: shape.hole * by, lift: shape.lift * by };

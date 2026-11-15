@@ -132,7 +132,8 @@ Emulator and debug builds keep fixed names and are not numbered.
 ## The icon
 
 The icon is drawn by `scripts/make-icons.mjs` (`npm run icons`): a camera
-iris with a hot-air balloon in its opening. The script writes the drawings to
+iris of six straight blades with a hot-air balloon in the hexagon they
+leave open. The script writes the drawings to
 `app/assets/icon/` as SVG and renders the PNGs `app.json` points to with
 headless Edge. Change the icon there and run it again; do not edit the PNGs.
 
