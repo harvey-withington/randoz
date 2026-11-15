@@ -4,14 +4,17 @@
 // shrinks them again. On a path with a lower limit that goes wrong: the
 // connection sends packets that cannot arrive until it times out. Seen in
 // every cross-network run of Spike 1; see spikes/spike1/README.md, "The
-// stall", and plan/udx-mtu-issue-draft.md.
+// stall". Upstream it is https://github.com/holepunchto/libudx/issues/333,
+// where a maintainer has confirmed it and said the fix needs a new version
+// of the protocol.
 //
 // UDX has no setting for this, so we reach into the stream's native state and
 // lower "the largest size to try". This relies on the field order in libudx
 // commit 9c9a0e7 (udx-native 1.22.1): mtu_state, mtu_probe_wanted,
 // mtu_probe_count, mtu_probe_size, mtu_max, mtu. It checks that the values
-// look right first and does nothing if they don't. Remove it when UDX can
-// step back down, or offers a setting.
+// look right first and does nothing if they don't. Remove it when that issue
+// is fixed in the udx-native version pinned here, or when UDX offers a
+// setting for the largest packet size.
 
 import udxBinding from 'udx-native/binding.js'
 
