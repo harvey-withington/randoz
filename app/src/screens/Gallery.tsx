@@ -13,13 +13,15 @@ interface Props {
   sections: Section[];
   view: ViewType;
   sort: Sort;
+  /** The other way from the sort's own direction. */
+  reverse: boolean;
   /** The width there is to fill. */
   width: number;
   selecting: boolean;
   selected: Set<string>;
   onOpen: (id: string) => void;
   onToggle: (id: string) => void;
-  onSort: (sort: Sort) => void;
+  onSort: (sort: Sort, reverse: boolean) => void;
   /** Room to leave under the last photo, for what floats over the list. */
   bottomSpace: number;
   /** Shown when there is nothing to list. */
@@ -46,7 +48,7 @@ const TILE_MIN: Record<Exclude<ViewType, 'details'>, { side: number; columns: nu
  * that sort it.
  */
 export function Gallery(props: Props) {
-  const { sections, view, sort, width, selecting, selected, onOpen, onToggle, onSort, bottomSpace, empty, hidden } = props;
+  const { sections, view, sort, reverse, width, selecting, selected, onOpen, onToggle, onSort, bottomSpace, empty, hidden } = props;
   const theme = useTheme();
   const c = theme.color;
   const gap = theme.space[1];
@@ -74,7 +76,7 @@ export function Gallery(props: Props) {
   const press = (id: string) => (selecting ? onToggle(id) : onOpen(id));
 
   const renderRow = ({ item: row }: { item: Row }) => {
-    if (row.kind === 'columns') return <Columns sort={sort} onSort={onSort} />;
+    if (row.kind === 'columns') return <Columns sort={sort} reverse={reverse} onSort={onSort} />;
     if (row.kind === 'heading') {
       return (
         <View
@@ -138,19 +140,24 @@ export function Gallery(props: Props) {
 
 interface ColumnsProps {
   sort: Sort;
-  onSort: (sort: Sort) => void;
+  reverse: boolean;
+  onSort: (sort: Sort, reverse: boolean) => void;
 }
 
-/** The details list's column headings. Tapping one sorts by it; tapping Date again turns it round. */
-function Columns({ sort, onSort }: ColumnsProps) {
+/**
+ * The details list's column headings. Tapping one sorts by it, in its own
+ * direction; tapping it again turns it round. The arrow points the way the
+ * values run down the list.
+ */
+function Columns({ sort, reverse, onSort }: ColumnsProps) {
   const theme = useTheme();
   const c = theme.color;
-  const date = sort === 'oldest' ? 'oldest' : 'newest';
-  const columns: { label: string; sort: Sort; active: boolean; up: boolean }[] = [
-    { label: t('sort.title'), sort: 'title', active: sort === 'title', up: true },
-    { label: t('sort.person'), sort: 'person', active: sort === 'person', up: true },
-    { label: t('sort.date'), sort: sort === 'newest' ? 'oldest' : 'newest', active: sort === date, up: sort === 'oldest' },
-    { label: t('sort.size'), sort: 'size', active: sort === 'size', up: false },
+  // Titles and people run A to Z (up); dates and sizes run from most to least (down).
+  const columns: { label: string; sort: Sort; rises: boolean }[] = [
+    { label: t('sort.title'), sort: 'title', rises: true },
+    { label: t('sort.person'), sort: 'person', rises: true },
+    { label: t('sort.date'), sort: 'date', rises: false },
+    { label: t('sort.size'), sort: 'size', rises: false },
   ];
   return (
     <View
@@ -164,14 +171,15 @@ function Columns({ sort, onSort }: ColumnsProps) {
       }}
     >
       {columns.map((column) => {
-        const Arrow = column.up ? ArrowUp : ArrowDown;
+        const active = column.sort === sort;
+        const Arrow = column.rises !== (active && reverse) ? ArrowUp : ArrowDown;
         return (
           <Pressable
             key={column.label}
             accessibilityRole="button"
             accessibilityLabel={t('sort.by', { what: column.label })}
-            accessibilityState={{ selected: column.active }}
-            onPress={() => onSort(column.sort)}
+            accessibilityState={{ selected: active }}
+            onPress={() => onSort(column.sort, active ? !reverse : false)}
             style={{
               flexDirection: 'row',
               alignItems: 'center',
@@ -180,10 +188,10 @@ function Columns({ sort, onSort }: ColumnsProps) {
               paddingHorizontal: theme.space[2],
             }}
           >
-            <Txt variant="label" color={column.active ? c.accent : undefined}>
+            <Txt variant="label" color={active ? c.accent : undefined}>
               {column.label}
             </Txt>
-            {column.active ? <Arrow size={14} color={c.accent} /> : null}
+            {active ? <Arrow size={14} color={c.accent} /> : null}
           </Pressable>
         );
       })}

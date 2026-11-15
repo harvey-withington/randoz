@@ -6,7 +6,7 @@ import { Sheet } from '../components/Sheet';
 import { ToggleRow } from '../components/ToggleRow';
 import { Txt } from '../components/Txt';
 import { t } from '../i18n';
-import type { Settings, ViewerInfo } from '../lib/types';
+import type { GroupHeader, Settings, ViewerInfo } from '../lib/types';
 import { useShell } from '../shell/shell';
 import { useNode } from '../store/node';
 import { useTheme } from '../theme/theme';
@@ -37,6 +37,10 @@ export function PreferencesSheet({ onClose }: Props) {
     { value: 'line', label: t('prefs.infoLine') },
     { value: 'hidden', label: t('prefs.infoHidden') },
   ];
+  const headerOptions: { value: GroupHeader; label: string }[] = [
+    { value: 'full', label: t('prefs.infoFull') },
+    { value: 'line', label: t('prefs.infoLine') },
+  ];
   const copyLog = async () => {
     await Clipboard.setStringAsync(node.log());
     shell.toast(t('settings.logCopied'), 'success');
@@ -54,12 +58,24 @@ export function PreferencesSheet({ onClose }: Props) {
         <View style={{ gap: theme.space[4] }}>
           <Txt variant="title">{t('prefs.photos')}</Txt>
           <Choice label={t('view.layout')} options={viewOptions()} value={settings.view} onChange={(view) => set({ view })} />
-          <Choice label={t('sort.label')} options={sortOptions()} value={settings.sort} onChange={(sort) => set({ sort })} />
+          <Choice label={t('sort.label')} options={sortOptions()} value={settings.sort} onChange={(sort) => set({ sort, sortReverse: false })} />
+          <ToggleRow
+            label={t('sort.reverse')}
+            hint={t('sort.reverseHint')}
+            value={settings.sortReverse}
+            onChange={(sortReverse) => set({ sortReverse })}
+          />
           <Choice
             label={t('groupBy.label')}
             options={groupOptions()}
             value={settings.groupBy}
             onChange={(groupBy) => set({ groupBy })}
+          />
+          <Choice
+            label={t('prefs.groupHeader')}
+            options={headerOptions}
+            value={settings.groupHeader}
+            onChange={(groupHeader) => set({ groupHeader })}
           />
           <Choice
             label={t('prefs.viewerInfo')}

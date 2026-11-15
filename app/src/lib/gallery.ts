@@ -8,9 +8,11 @@ export interface Arrangement {
   search: string;
   /** Only photos shared by this member (their key), or null for everyone's. */
   person: string | null;
-  /** Only photos with this tag, the sharer's or your own; null for all. */
-  tag: string | null;
+  /** Only photos with one of these tags, the sharer's or your own; none means all. */
+  tags: string[];
   sort: Sort;
+  /** The other way from the sort's own: oldest first, Z to A, smallest first. */
+  reverse: boolean;
   groupBy: GroupBy;
 }
 
@@ -43,9 +45,12 @@ export function tagsIn(items: Item[]): { shared: string[]; mine: string[] } {
   return { shared, mine: collect((item) => item.myTags).filter((tag) => !taken.has(tag.toLowerCase())) };
 }
 
-function matches(item: Item, { search, person, tag }: Arrangement): boolean {
+function matches(item: Item, { search, person, tags }: Arrangement): boolean {
   if (person !== null && item.sharedBy !== person) return false;
-  if (tag !== null && !tagsOf(item).some((one) => one.toLowerCase() === tag.toLowerCase())) return false;
+  if (tags.length > 0) {
+    const wanted = new Set(tags.map((tag) => tag.toLowerCase()));
+    if (!tagsOf(item).some((one) => wanted.has(one.toLowerCase()))) return false;
+  }
   const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length === 0) return true;
   const text = [item.title, item.sharedTitle, item.description, item.sharedDescription, item.name, ...tagsOf(item)]
@@ -54,20 +59,16 @@ function matches(item: Item, { search, person, tag }: Arrangement): boolean {
   return words.every((word) => text.includes(word));
 }
 
-function compare(sort: Sort): (a: Item, b: Item) => number {
+/** Each sort's own direction: newest first, A to Z, largest first. */
+function compare(sort: Sort, reverse: boolean): (a: Item, b: Item) => number {
   const newest = (a: Item, b: Item) => b.createdAt - a.createdAt;
-  switch (sort) {
-    case 'oldest':
-      return (a, b) => a.createdAt - b.createdAt;
-    case 'title':
-      return (a, b) => labelOf(a).localeCompare(labelOf(b)) || newest(a, b);
-    case 'person':
-      return (a, b) => (a.by?.name ?? '').localeCompare(b.by?.name ?? '') || newest(a, b);
-    case 'size':
-      return (a, b) => b.size - a.size || newest(a, b);
-    default:
-      return newest;
-  }
+  const own: Record<Sort, (a: Item, b: Item) => number> = {
+    date: newest,
+    title: (a, b) => labelOf(a).localeCompare(labelOf(b)) || newest(a, b),
+    person: (a, b) => (a.by?.name ?? '').localeCompare(b.by?.name ?? '') || newest(a, b),
+    size: (a, b) => b.size - a.size || newest(a, b),
+  };
+  return reverse ? (a, b) => own[sort](b, a) : own[sort];
 }
 
 /**
@@ -76,7 +77,7 @@ function compare(sort: Sort): (a: Item, b: Item) => number {
  * names the section for photos with none.
  */
 export function arrange(items: Item[], arrangement: Arrangement, untagged: string): Section[] {
-  const shown = items.filter((item) => matches(item, arrangement)).sort(compare(arrangement.sort));
+  const shown = items.filter((item) => matches(item, arrangement)).sort(compare(arrangement.sort, arrangement.reverse));
   if (arrangement.groupBy === 'none') return shown.length > 0 ? [{ key: '', title: '', items: shown }] : [];
 
   const sections = new Map<string, Section>();
@@ -94,6 +95,16 @@ export function arrange(items: Item[], arrangement: Arrangement, untagged: strin
   return [...sections.values()].sort(
     (a, b) => Number(a.key === 'none') - Number(b.key === 'none') || a.title.localeCompare(b.title),
   );
+}
+
+/**
+ * A tag's colour: a hue worked out from its letters, so the same tag is the
+ * same colour everywhere and for everyone. Drawn fully saturated by the theme.
+ */
+export function tagHue(tag: string): number {
+  let hash = 0;
+  for (const letter of tag.toLowerCase()) hash = (hash * 31 + letter.codePointAt(0)!) % 360;
+  return hash;
 }
 
 /** Every photo in the sections, once each, in the order shown. */

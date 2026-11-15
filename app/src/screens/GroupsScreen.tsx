@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { ActivityIndicator, Animated, Image, PanResponder, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronRight, GripVertical, Images, QrCode, Settings, UserRound } from 'lucide-react-native';
@@ -25,6 +25,9 @@ interface Props {
 
 /** Every row is this tall, so a dragged row knows how far one place is. */
 const ROW = 104;
+/** Dragging within this distance of the list's top or bottom scrolls it, this far each frame. */
+const EDGE = 72;
+const CREEP = 12;
 
 /**
  * How a group's connection reads in one line: first whether this phone is
@@ -62,6 +65,16 @@ export function GroupsScreen({ state, selected, onOpen, onStart, onJoin, onProfi
   // The order just dropped, shown until the core's state says the same.
   const [dropped, setDropped] = useState<string[] | null>(null);
   const lift = useRef(new Animated.Value(0)).current;
+  // For scrolling the list while a row is dragged near its top or bottom.
+  const list = useRef<ComponentRef<typeof ScrollView>>(null);
+  const scroll = useRef({ y: 0, start: 0, most: 0, top: 0, bottom: 0 });
+  const finger = useRef({ id: '', dy: 0, y: 0 });
+  const creep = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopCreep = () => {
+    if (creep.current) clearInterval(creep.current);
+    creep.current = null;
+  };
+  useEffect(() => stopCreep, []);
 
   const joining = state.groups.filter((group): group is JoiningGroup => group.joining);
   const joined = state.groups.filter((group): group is Group => !group.joining);
@@ -74,18 +87,42 @@ export function GroupsScreen({ state, selected, onOpen, onStart, onJoin, onProfi
   const shown = ordered.filter((group) => matches(group, search));
   const sortable = search.trim() === '' && shown.length > 1;
 
-  const move = (id: string, dy: number) => {
+  // How far the row has moved is how far the finger has, plus how far the
+  // list has scrolled under it since the drag began.
+  const place = (id: string, dy: number) => {
     const from = shown.findIndex((group) => group.id === id);
     if (from === -1) return;
     const least = -from * step;
     const most = (shown.length - 1 - from) * step;
-    const by = Math.max(least, Math.min(most, dy));
+    const by = Math.max(least, Math.min(most, dy + scroll.current.y - scroll.current.start));
     lift.setValue(by);
     const to = from + Math.round(by / step);
     setDrag((current) => (current && current.id === id && current.to === to ? current : { id, from, to }));
   };
+  const placing = useRef(place);
+  placing.current = place;
+
+  const move = (id: string, dy: number, y: number) => {
+    if (finger.current.id !== id) scroll.current.start = scroll.current.y; // a new drag
+    finger.current = { id, dy, y };
+    place(id, dy);
+    // Near the top or bottom of the list: keep scrolling that way until the finger moves off.
+    const way = y < scroll.current.top + EDGE ? -1 : y > scroll.current.bottom - EDGE ? 1 : 0;
+    if (way === 0) return stopCreep();
+    if (creep.current) return;
+    creep.current = setInterval(() => {
+      const edge = finger.current.y < scroll.current.top + EDGE ? -1 : 1;
+      const next = Math.max(0, Math.min(scroll.current.most, scroll.current.y + edge * CREEP));
+      if (next === scroll.current.y) return;
+      scroll.current.y = next;
+      list.current?.scrollTo({ y: next, animated: false });
+      placing.current(finger.current.id, finger.current.dy);
+    }, 16);
+  };
 
   const drop = () => {
+    stopCreep();
+    finger.current = { id: '', dy: 0, y: 0 };
     lift.setValue(0);
     setDrag(null);
     if (!drag || drag.from === drag.to) return;
@@ -127,6 +164,21 @@ export function GroupsScreen({ state, selected, onOpen, onStart, onJoin, onProfi
       ) : null}
 
       <ScrollView
+        ref={list}
+        onScroll={(event) => {
+          if (!creep.current) scroll.current.y = event.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
+        onLayout={(event) => {
+          const { height } = event.nativeEvent.layout;
+          list.current?.measureInWindow((_x, y) => {
+            scroll.current.top = y;
+            scroll.current.bottom = y + height;
+          });
+        }}
+        onContentSizeChange={(_width, height) => {
+          scroll.current.most = Math.max(0, height - (scroll.current.bottom - scroll.current.top));
+        }}
         scrollEnabled={!drag}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ padding: theme.space[3], gap }}
@@ -150,7 +202,7 @@ export function GroupsScreen({ state, selected, onOpen, onStart, onJoin, onProfi
                 connected={state.online}
                 selected={selected === group.id}
                 onPress={() => onOpen(group.id)}
-                onDrag={sortable ? (dy) => move(group.id, dy) : undefined}
+                onDrag={sortable ? (dy, y) => move(group.id, dy, y) : undefined}
                 onDrop={drop}
               />
             </Animated.View>
@@ -188,8 +240,8 @@ interface RowProps {
   connected: boolean;
   selected: boolean;
   onPress: () => void;
-  /** Called with how far the handle has been dragged; absent when the list can't be reordered. */
-  onDrag?: (dy: number) => void;
+  /** Called with how far the handle has been dragged and where the finger is on the screen; absent when the list can't be reordered. */
+  onDrag?: (dy: number, y: number) => void;
   onDrop: () => void;
 }
 
@@ -214,8 +266,8 @@ function GroupRow({ group, connected, selected, onPress, onDrag, onDrop }: RowPr
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
         onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: () => handlers.current.onDrag?.(0),
-        onPanResponderMove: (_event, gesture) => handlers.current.onDrag?.(gesture.dy),
+        onPanResponderGrant: (_event, gesture) => handlers.current.onDrag?.(0, gesture.y0),
+        onPanResponderMove: (_event, gesture) => handlers.current.onDrag?.(gesture.dy, gesture.moveY),
         onPanResponderRelease: () => handlers.current.onDrop(),
         onPanResponderTerminate: () => handlers.current.onDrop(),
       }),

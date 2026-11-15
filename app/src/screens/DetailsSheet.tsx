@@ -6,7 +6,7 @@ import { Field } from '../components/Field';
 import { Sheet } from '../components/Sheet';
 import { Txt } from '../components/Txt';
 import { t } from '../i18n';
-import { tagsIn } from '../lib/gallery';
+import { tagHue, tagsIn } from '../lib/gallery';
 import type { Group, Item } from '../lib/types';
 import { useShell } from '../shell/shell';
 import { useNode } from '../store/node';
@@ -45,8 +45,10 @@ export function DetailsSheet({ group, item, onClose }: Props) {
     list.filter((tag) => !tags.some((one) => same(one, tag)) && !(!item.mine && item.tags.some((one) => same(one, tag))));
   const toggle = (tag: string) =>
     setTags((current) => (current.some((one) => same(one, tag)) ? current.filter((one) => !same(one, tag)) : [...current, tag]));
+  // Tags are always lower case, however they are typed.
+  const tidy = (text: string) => text.trim().replace(/^#+/, '').trim().toLowerCase();
   const add = () => {
-    const tag = typed.trim().replace(/^#+/, '').trim();
+    const tag = tidy(typed);
     if (tag && !tags.some((one) => same(one, tag))) setTags([...tags, tag]);
     setTyped('');
   };
@@ -54,7 +56,7 @@ export function DetailsSheet({ group, item, onClose }: Props) {
   const save = async () => {
     if (busy) return;
     setBusy(true);
-    const pending = typed.trim().replace(/^#+/, '').trim();
+    const pending = tidy(typed);
     const all = pending && !tags.some((one) => same(one, pending)) ? [...tags, pending] : tags;
     try {
       await node.call('setItemDetails', {
@@ -112,13 +114,13 @@ export function DetailsSheet({ group, item, onClose }: Props) {
           ) : null}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.space[2] }}>
             {tags.map((tag) => (
-              <Chip key={'on:' + tag} label={'#' + tag} chosen onPress={() => toggle(tag)} />
+              <Chip key={'on:' + tag} label={'#' + tag} hue={tagHue(tag)} chosen onPress={() => toggle(tag)} />
             ))}
             {offered(known.shared).map((tag) => (
-              <Chip key={'s:' + tag} label={'#' + tag} chosen={false} onPress={() => toggle(tag)} />
+              <Chip key={'s:' + tag} label={'#' + tag} hue={tagHue(tag)} chosen={false} onPress={() => toggle(tag)} />
             ))}
             {offered(known.mine).map((tag) => (
-              <Chip key={'m:' + tag} label={'#' + tag} detail={t('tags.private')} chosen={false} onPress={() => toggle(tag)} />
+              <Chip key={'m:' + tag} label={'#' + tag} detail={t('tags.private')} hue={tagHue(tag)} chosen={false} onPress={() => toggle(tag)} />
             ))}
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: theme.space[2] }}>
@@ -129,6 +131,7 @@ export function DetailsSheet({ group, item, onClose }: Props) {
                 onChange={setTyped}
                 placeholder={t('tags.newPlaceholder')}
                 maxLength={24}
+                plain
                 onSubmit={add}
               />
             </View>

@@ -2,7 +2,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { arrange, flatten, sizeLabel, tagsIn, tagsOf, type Arrangement } from '../src/lib/gallery.ts';
+import { arrange, flatten, sizeLabel, tagHue, tagsIn, tagsOf, type Arrangement } from '../src/lib/gallery.ts';
 import type { Item } from '../src/lib/types.ts';
 
 const photo = (id: string, over: Partial<Item>): Item => ({
@@ -34,16 +34,18 @@ const items = [
   photo('c', { createdAt: 3, title: 'Tail', tags: ['whale'], myTags: ['Favourites'], size: 9000 }),
 ];
 
-const all: Arrangement = { search: '', person: null, tag: null, sort: 'newest', groupBy: 'none' };
+const all: Arrangement = { search: '', person: null, tags: [], sort: 'date', reverse: false, groupBy: 'none' };
 const ids = (arrangement: Partial<Arrangement>) =>
   flatten(arrange(items, { ...all, ...arrangement }, 'No tags')).map((item) => item.id);
 
-test('photos sort by date, title, person and size', () => {
+test('photos sort by date, title, person and size, each either way', () => {
   assert.deepEqual(ids({}), ['c', 'b', 'a']);
-  assert.deepEqual(ids({ sort: 'oldest' }), ['a', 'b', 'c']);
+  assert.deepEqual(ids({ reverse: true }), ['a', 'b', 'c']);
   assert.deepEqual(ids({ sort: 'title' }), ['b', 'a', 'c']); // b.jpg, Breach, Tail
+  assert.deepEqual(ids({ sort: 'title', reverse: true }), ['c', 'a', 'b']);
   assert.deepEqual(ids({ sort: 'person' }), ['c', 'a', 'b']);
   assert.deepEqual(ids({ sort: 'size' }), ['c', 'a', 'b']);
+  assert.deepEqual(ids({ sort: 'size', reverse: true }), ['b', 'a', 'c']);
 });
 
 test('search looks in titles, descriptions, file names and tags, and needs every word', () => {
@@ -56,9 +58,11 @@ test('search looks in titles, descriptions, file names and tags, and needs every
 
 test('filters by who shared and by tag, shared or private, whatever the capitals', () => {
   assert.deepEqual(ids({ person: 'bob' }), ['b']);
-  assert.deepEqual(ids({ tag: 'whale' }), ['c', 'a']);
-  assert.deepEqual(ids({ tag: 'Food' }), ['b']);
-  assert.deepEqual(ids({ tag: 'whale', person: 'bob' }), []);
+  assert.deepEqual(ids({ tags: ['whale'] }), ['c', 'a']);
+  assert.deepEqual(ids({ tags: ['Food'] }), ['b']);
+  // Several tags: a photo with any one of them.
+  assert.deepEqual(ids({ tags: ['food', 'sea'] }), ['b', 'a']);
+  assert.deepEqual(ids({ tags: ['whale'], person: 'bob' }), []);
 });
 
 test('grouped by person or tag, each section is named and untagged photos come last', () => {
@@ -83,6 +87,12 @@ test('grouped by person or tag, each section is named and untagged photos come l
 test('tags are listed once, the sharer\'s apart from your own', () => {
   assert.deepEqual(tagsOf(items[2]), ['whale', 'Favourites']);
   assert.deepEqual(tagsIn(items), { shared: ['sea', 'Whale'], mine: ['Favourites', 'food'] });
+});
+
+test('a tag has one colour, whatever its capitals, and tags differ', () => {
+  assert.equal(tagHue('whale'), tagHue('Whale'));
+  assert.ok(tagHue('whale') >= 0 && tagHue('whale') < 360);
+  assert.notEqual(tagHue('whale'), tagHue('sea'));
 });
 
 test('sizes read as KB or MB', () => {

@@ -15,10 +15,12 @@ interface Props {
   onSubmit?: () => void;
   /** Several lines, growing as they are typed. */
   multiline?: boolean;
+  /** Start the keyboard in lower case and leave what is typed alone, as for a tag. */
+  plain?: boolean;
 }
 
 /** A labelled text field, one line unless `multiline`. UNCLI's `.input`. */
-export function Field({ label, value, onChange, placeholder, hint, maxLength, autoFocus, onSubmit, multiline }: Props) {
+export function Field({ label, value, onChange, placeholder, hint, maxLength, autoFocus, onSubmit, multiline, plain }: Props) {
   const theme = useTheme();
   const c = theme.color;
   return (
@@ -33,6 +35,8 @@ export function Field({ label, value, onChange, placeholder, hint, maxLength, au
         autoFocus={autoFocus}
         maxLength={maxLength}
         multiline={multiline}
+        autoCapitalize={plain ? 'none' : 'sentences'}
+        autoCorrect={plain ? false : undefined}
         textAlignVertical={multiline ? 'top' : 'center'}
         returnKeyType={multiline ? 'default' : 'done'}
         onSubmitEditing={multiline ? undefined : onSubmit}

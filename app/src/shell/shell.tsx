@@ -167,7 +167,7 @@ function Toasts({ toasts, onDismiss }: ToastsProps) {
       pointerEvents="box-none"
       style={{
         position: 'absolute',
-        top: insets.top + theme.space[2],
+        bottom: insets.bottom + theme.touch + theme.space[6],
         left: theme.space[3],
         right: theme.space[3],
         gap: theme.space[2],

@@ -5,7 +5,8 @@ import { Choice } from '../components/Choice';
 import { Sheet } from '../components/Sheet';
 import { Txt } from '../components/Txt';
 import { t } from '../i18n';
-import { tagsIn } from '../lib/gallery';
+import { ToggleRow } from '../components/ToggleRow';
+import { tagHue, tagsIn } from '../lib/gallery';
 import type { Group, GroupBy, Sort, ViewType } from '../lib/types';
 import { useNode } from '../store/node';
 import { useTheme } from '../theme/theme';
@@ -14,10 +15,10 @@ interface Props {
   group: Group;
   /** The member whose photos are shown (their key), or null for everyone's. */
   person: string | null;
-  /** The tag whose photos are shown, or null for all. */
-  tag: string | null;
+  /** The tags whose photos are shown: any photo with one of them. None means all. */
+  tags: string[];
   onPerson: (person: string | null) => void;
-  onTag: (tag: string | null) => void;
+  onTags: (tags: string[]) => void;
   onClose: () => void;
 }
 
@@ -28,8 +29,7 @@ export const viewOptions = (): { value: ViewType; label: string }[] => [
 ];
 
 export const sortOptions = (): { value: Sort; label: string }[] => [
-  { value: 'newest', label: t('sort.newest') },
-  { value: 'oldest', label: t('sort.oldest') },
+  { value: 'date', label: t('sort.date') },
   { value: 'title', label: t('sort.title') },
   { value: 'person', label: t('sort.person') },
   { value: 'size', label: t('sort.size') },
@@ -46,7 +46,7 @@ export const groupOptions = (): { value: GroupBy; label: string }[] => [
  * whose photos or which tag to show. The first three are remembered for
  * every group; the filters last until the group is closed.
  */
-export function ViewSheet({ group, person, tag, onPerson, onTag, onClose }: Props) {
+export function ViewSheet({ group, person, tags: chosen, onPerson, onTags, onClose }: Props) {
   const theme = useTheme();
   const node = useNode();
   const settings = node.state?.settings;
@@ -56,6 +56,8 @@ export function ViewSheet({ group, person, tag, onPerson, onTag, onClose }: Prop
     node.call('setSettings', change).catch(() => {});
   };
   if (!settings) return null;
+  const has = (tag: string) => chosen.includes(tag);
+  const flip = (tag: string) => onTags(has(tag) ? chosen.filter((one) => one !== tag) : [...chosen, tag]);
 
   return (
     <Sheet
@@ -65,7 +67,13 @@ export function ViewSheet({ group, person, tag, onPerson, onTag, onClose }: Prop
     >
       <View style={{ gap: theme.space[5] }}>
         <Choice label={t('view.layout')} options={viewOptions()} value={settings.view} onChange={(view) => set({ view })} />
-        <Choice label={t('sort.label')} options={sortOptions()} value={settings.sort} onChange={(sort) => set({ sort })} />
+        <Choice label={t('sort.label')} options={sortOptions()} value={settings.sort} onChange={(sort) => set({ sort, sortReverse: false })} />
+        <ToggleRow
+          label={t('sort.reverse')}
+          hint={t('sort.reverseHint')}
+          value={settings.sortReverse}
+          onChange={(sortReverse) => set({ sortReverse })}
+        />
         <Choice
           label={t('groupBy.label')}
           options={groupOptions()}
@@ -95,17 +103,18 @@ export function ViewSheet({ group, person, tag, onPerson, onTag, onClose }: Prop
             <Txt variant="faint">{t('filter.noTags')}</Txt>
           ) : (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.space[2] }}>
-              <Chip label={t('filter.allTags')} chosen={tag === null} onPress={() => onTag(null)} />
+              <Chip label={t('filter.allTags')} chosen={chosen.length === 0} onPress={() => onTags([])} />
               {tags.shared.map((one) => (
-                <Chip key={'s:' + one} label={'#' + one} chosen={tag === one} onPress={() => onTag(tag === one ? null : one)} />
+                <Chip key={'s:' + one} label={'#' + one} hue={tagHue(one)} chosen={has(one)} onPress={() => flip(one)} />
               ))}
               {tags.mine.map((one) => (
                 <Chip
                   key={'m:' + one}
                   label={'#' + one}
                   detail={t('tags.private')}
-                  chosen={tag === one}
-                  onPress={() => onTag(tag === one ? null : one)}
+                  hue={tagHue(one)}
+                  chosen={has(one)}
+                  onPress={() => flip(one)}
                 />
               ))}
             </View>
@@ -123,12 +132,16 @@ interface ChipProps {
   chosen: boolean;
   onPress: () => void;
   mark?: React.ReactNode;
+  /** A tag's own colour, in place of the accent. */
+  hue?: number;
 }
 
 /** A filter that is on or off: a rounded label, filled when it is on. */
-export function Chip({ label, detail, chosen, onPress, mark }: ChipProps) {
+export function Chip({ label, detail, chosen, onPress, mark, hue }: ChipProps) {
   const theme = useTheme();
   const c = theme.color;
+  const ink = hue === undefined ? c.accent : theme.tint(hue);
+  const fill = hue === undefined ? c.accentSoft : theme.tintSoft(hue);
   return (
     <Pressable
       accessibilityRole="checkbox"
@@ -143,12 +156,14 @@ export function Chip({ label, detail, chosen, onPress, mark }: ChipProps) {
         paddingHorizontal: theme.space[3],
         borderRadius: theme.touch / 2,
         borderWidth: 1.5,
-        borderColor: chosen ? c.accent : c.borderStrong,
-        backgroundColor: chosen ? c.accentSoft : 'transparent',
+        borderColor: chosen || hue !== undefined ? ink : c.borderStrong,
+        backgroundColor: chosen ? fill : 'transparent',
       }}
     >
       {mark}
-      <Txt color={chosen ? c.accent : c.text}>{label}</Txt>
+      <Txt color={chosen || hue !== undefined ? ink : c.text} style={{ fontFamily: chosen ? theme.font.semibold : theme.font.regular }}>
+        {label}
+      </Txt>
       {detail ? <Txt variant="faint">{detail}</Txt> : null}
     </Pressable>
   );

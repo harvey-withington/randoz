@@ -33,8 +33,8 @@ export const MAX_TAG = 24
 export const cleanText = (value, max) => (typeof value === 'string' ? value.trim().slice(0, max) : '')
 
 /**
- * Tags as they are kept: trimmed, without a leading #, no empty ones, no
- * repeats (whatever the capitals), and only so many.
+ * Tags as they are kept: lower case, trimmed, without a leading #, no empty
+ * ones, no repeats, and only so many.
  * @param {unknown} value @returns {string[]}
  */
 export function cleanTags(value) {
@@ -43,10 +43,9 @@ export function cleanTags(value) {
   const seen = new Set()
   for (const raw of Array.isArray(value) ? value : []) {
     if (typeof raw !== 'string') continue
-    const tag = raw.trim().replace(/^#+/, '').trim().slice(0, MAX_TAG)
-    const key = tag.toLowerCase()
-    if (!tag || seen.has(key)) continue
-    seen.add(key)
+    const tag = raw.trim().replace(/^#+/, '').trim().slice(0, MAX_TAG).toLowerCase()
+    if (!tag || seen.has(tag)) continue
+    seen.add(tag)
     out.push(tag)
     if (out.length === MAX_TAGS) break
   }

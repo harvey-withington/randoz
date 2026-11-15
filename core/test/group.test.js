@@ -357,16 +357,16 @@ test('a sharer titles, describes and tags a photo for the group; others keep the
   await until(async () => (await view(bob, b)).items[0].title === 'Breach!', 'the title to reach bob')
   let seen = (await view(bob, b)).items[0]
   assert.equal(seen.description, 'Off the point')
-  assert.deepEqual(seen.tags, ['Whale', 'sea'])
+  assert.deepEqual(seen.tags, ['whale', 'sea'])
   assert.deepEqual(seen.myTags, [])
 
   // Bob's are his alone.
-  await bob.setItemDetails({ group: b, id, title: 'The big one', description: '', tags: ['favourites'] })
+  await bob.setItemDetails({ group: b, id, title: 'The big one', description: '', tags: ['Favourites'] })
   seen = (await view(bob, b)).items[0]
   assert.equal(seen.title, 'The big one')
   assert.equal(seen.sharedTitle, 'Breach!')
   assert.equal(seen.description, 'Off the point') // no override, so the sharer's
-  assert.deepEqual(seen.tags, ['Whale', 'sea'])
+  assert.deepEqual(seen.tags, ['whale', 'sea'])
   assert.deepEqual(seen.myTags, ['favourites'])
   await new Promise((resolve) => setTimeout(resolve, 500))
   const hers = (await view(alice, a)).items[0]
@@ -411,10 +411,11 @@ test('the group list keeps the order it was given, and settings only take values
   const { group: four } = await alice.createGroup({ name: 'Four' })
   assert.deepEqual(await ids(), [four, one, three, two]) // a new one goes on top
 
-  await alice.setSettings({ view: 'details', sort: 'sideways', panelWidth: 5, viewerInfo: 'line', nonsense: true })
+  await alice.setSettings({ view: 'details', sort: 'sideways', sortReverse: true, panelWidth: 5, viewerInfo: 'line', nonsense: true })
   const { settings } = await alice.snapshot()
   assert.equal(settings.view, 'details')
-  assert.equal(settings.sort, 'newest')
+  assert.equal(settings.sort, 'date')
+  assert.equal(settings.sortReverse, true)
   assert.equal(settings.panelWidth, 360)
   assert.equal(settings.viewerInfo, 'line')
   assert.equal('nonsense' in settings, false)

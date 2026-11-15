@@ -1,9 +1,10 @@
 import { ActivityIndicator, Image, Pressable, View } from 'react-native';
 import { Check, Download } from 'lucide-react-native';
 import { Avatar } from '../components/Avatar';
+import { Tags } from '../components/Tags';
 import { Txt } from '../components/Txt';
 import { t } from '../i18n';
-import { labelOf, sizeLabel, tagsOf } from '../lib/gallery';
+import { labelOf, sizeLabel } from '../lib/gallery';
 import type { Item } from '../lib/types';
 import { toUri } from '../store/node';
 import { useTheme } from '../theme/theme';
@@ -27,7 +28,6 @@ export function PhotoRow({ item, selecting, selected, onPress, onLongPress }: Pr
   const theme = useTheme();
   const c = theme.color;
   const who = item.mine ? t('viewer.byYou') : t('viewer.by', { name: item.by?.name ?? '' });
-  const tags = tagsOf(item);
   const when = new Date(item.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
   const facts = [item.by?.name ?? '', when, sizeLabel(item.size)].filter(Boolean).join(' · ');
 
@@ -76,11 +76,7 @@ export function PhotoRow({ item, selecting, selected, onPress, onLongPress }: Pr
             {item.description}
           </Txt>
         ) : null}
-        {tags.length > 0 ? (
-          <Txt variant="faint" color={c.accent} numberOfLines={1}>
-            {tags.map((tag) => '#' + tag).join('  ')}
-          </Txt>
-        ) : null}
+        <Tags tags={item.tags} mine={item.myTags} small />
         <Txt variant="faint" numberOfLines={1}>
           {facts}
         </Txt>

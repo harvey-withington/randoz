@@ -39,7 +39,10 @@ export interface Member extends Person {
 
 /** How a group's photos are laid out. */
 export type ViewType = 'large' | 'small' | 'details';
-export type Sort = 'newest' | 'oldest' | 'title' | 'person' | 'size';
+/** What photos are ordered by. Each has a natural direction, which `sortReverse` turns round. */
+export type Sort = 'date' | 'title' | 'person' | 'size';
+/** How much the top of a group's screen shows. */
+export type GroupHeader = 'full' | 'line';
 export type GroupBy = 'none' | 'person' | 'tag';
 /** How much the photo viewer says about a photo. */
 export type ViewerInfo = 'full' | 'line' | 'hidden';
@@ -52,8 +55,11 @@ export interface Settings {
   stayConnected: boolean;
   view: ViewType;
   sort: Sort;
+  /** Oldest first, Z to A, smallest first: the other way from each sort's own. */
+  sortReverse: boolean;
   groupBy: GroupBy;
   viewerInfo: ViewerInfo;
+  groupHeader: GroupHeader;
   /** The group list's width on a wide screen. */
   panelWidth: number;
 }
